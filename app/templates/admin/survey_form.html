@@ -56,6 +56,35 @@
           <textarea id="description_en" name="description_en" class="form-input" rows="3" dir="ltr">{{ survey.description_en if survey else '' }}</textarea>
         </div>
       </div>
+
+      <!-- مظهر ونمط الاستبيان وإضافة الصور (Theme & Image Uploads) -->
+      <div style="border-top: 1px solid var(--alj-gray-border); padding-top: var(--spacing-lg); margin-top: var(--spacing-md);">
+        <h3 style="font-size: 1.05rem; color: var(--alj-purple-primary); margin-bottom: var(--spacing-md);">🎨 {{ t('admin.appearance_section', lang) }}</h3>
+        
+        <div class="grid-2col">
+          <!-- صورة الغلاف / البانر العلوي -->
+          <div class="form-group">
+            <label class="form-label"><strong>{{ t('admin.header_image_label', lang) }}</strong></label>
+            <input type="file" name="header_image_file" id="header_image_file" class="form-input" accept="image/*" onchange="previewSelectedImage(this, 'header-preview-box')">
+            <input type="text" name="header_image_url" id="header_image_url" class="form-input form-input-sm" style="margin-top:0.4rem;" placeholder="{{ t('admin.header_image_url_placeholder', lang) }}" value="{{ survey.header_image_url if survey and survey.header_image_url else '' }}" oninput="previewUrlImage(this.value, 'header-preview-box')">
+            <div id="header-preview-box" style="margin-top:0.6rem; {% if not (survey and survey.header_image_url) %}display:none;{% else %}display:flex;{% endif %} align-items:center; gap:0.75rem; background:#f4f4f5; padding:0.4rem 0.8rem; border-radius:6px;">
+              <img id="header-preview-img" src="{{ survey.header_image_url if survey and survey.header_image_url else '' }}" alt="Header Preview" style="height:55px; max-width:140px; object-fit:cover; border-radius:4px; border:1px solid #ccc;">
+              <span class="text-sm" style="color:var(--alj-purple-primary); font-weight:600;">{{ t('admin.header_preview_label', lang) }}</span>
+            </div>
+          </div>
+
+          <!-- خلفية الاستبيان -->
+          <div class="form-group">
+            <label class="form-label"><strong>{{ t('admin.background_label', lang) }}</strong></label>
+            <input type="file" name="background_file" id="background_file" class="form-input" accept="image/*" onchange="previewSelectedImage(this, 'bg-preview-box')">
+            <input type="text" name="background_url" id="background_url" class="form-input form-input-sm" style="margin-top:0.4rem;" placeholder="{{ t('admin.background_url_placeholder', lang) }}" value="{{ survey.background_url if survey and survey.background_url else '' }}" oninput="previewUrlImage(this.value, 'bg-preview-box')">
+            <div id="bg-preview-box" style="margin-top:0.6rem; {% if not (survey and survey.background_url) %}display:none;{% else %}display:flex;{% endif %} align-items:center; gap:0.75rem; background:#f4f4f5; padding:0.4rem 0.8rem; border-radius:6px;">
+              <img id="bg-preview-img" src="{{ survey.background_url if survey and survey.background_url else '' }}" alt="Background Preview" style="height:55px; max-width:140px; object-fit:cover; border-radius:4px; border:1px solid #ccc;">
+              <span class="text-sm" style="color:var(--alj-purple-primary); font-weight:600;">{{ t('admin.background_preview_label', lang) }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- منشئ الأسئلة والخيارات -->
@@ -247,6 +276,30 @@ function escapeHtml(text) {
 
 function prepareSubmit(e) {
   document.getElementById('questions_json').value = JSON.stringify(questions);
+}
+
+function previewSelectedImage(input, boxId) {
+  if (input.files && input.files[0]) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const box = document.getElementById(boxId);
+      const img = box.querySelector('img');
+      img.src = e.target.result;
+      box.style.display = 'flex';
+    };
+    reader.readAsDataURL(input.files[0]);
+  }
+}
+
+function previewUrlImage(url, boxId) {
+  const box = document.getElementById(boxId);
+  const img = box.querySelector('img');
+  if (url && url.trim().length > 4) {
+    img.src = url.trim();
+    box.style.display = 'flex';
+  } else {
+    box.style.display = 'none';
+  }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
