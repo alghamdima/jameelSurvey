@@ -9,52 +9,46 @@
 {% block content %}
 <div class="container admin-container">
   
-  <!-- رأس لوحة الإدارة بتصميم تنفيذي عصري -->
-  <div class="dashboard-hero-bar">
-    <div class="dashboard-hero-titles">
-      <h1 class="admin-page-title" style="margin-bottom:0.25rem;">{{ t('admin.dashboard_title', lang) }}</h1>
-      <p class="text-muted text-sm">
-        {{ t('admin.total_surveys', lang) }}: <strong style="color:var(--alj-purple-primary); font-size:1.05rem;">{{ surveys|length }}</strong>
-      </p>
+  <div class="admin-header-bar">
+    <div>
+      <h1 class="admin-page-title">{{ t('admin.dashboard_title', lang) }}</h1>
+      <p class="text-muted">{{ t('admin.total_surveys', lang) }}: <strong>{{ surveys|length }}</strong></p>
     </div>
 
     <div class="action-buttons-group">
-      <a href="/admin/surveys/new" class="btn btn-primary btn-lg shadow-sm">
-        <span style="font-size:1.2rem; font-weight:bold; line-height:1;">+</span>
-        <span>{{ t('admin.create_manual_btn', lang) }}</span>
+      <a href="/admin/surveys/new" class="btn btn-primary">
+        <span>+</span> {{ t('admin.create_manual_btn', lang) }}
       </a>
     </div>
   </div>
 
   {% if surveys %}
-  <!-- بطاقة جدول الاستبيانات المنظمة باحترافية -->
-  <div class="card table-card dashboard-table-card">
+  <div class="card table-card">
     <div class="table-responsive">
-      <table class="data-table luxury-dashboard-table">
+      <table class="data-table">
         <thead>
           <tr>
-            <th style="min-width: 260px;">{{ t('admin.table_title', lang) }}</th>
-            <th style="width: 120px; text-align: center;">{{ t('admin.table_status', lang) }}</th>
-            <th style="width: 110px; text-align: center;">{{ t('admin.table_responses', lang) }}</th>
-            <th style="width: 130px; text-align: center;">{{ t('admin.table_created', lang) }}</th>
-            <th style="width: 280px; text-align: center;">{{ t('admin.table_actions', lang) }}</th>
+            <th style="min-width: 280px;">{{ t('admin.table_title', lang) }}</th>
+            <th style="width: 110px; text-align: center;">{{ t('admin.table_status', lang) }}</th>
+            <th style="width: 100px; text-align: center;">{{ t('admin.table_responses', lang) }}</th>
+            <th style="width: 120px; text-align: center;">{{ t('admin.table_created', lang) }}</th>
+            <th style="width: 250px; text-align: center;">{{ t('admin.table_actions', lang) }}</th>
           </tr>
         </thead>
         <tbody>
           {% for s in surveys %}
-          <tr class="survey-row-item">
+          <tr>
             <!-- 1. عنوان الاستبيان ورابط المشاركة -->
             <td>
               <div class="survey-title-cell">
-                <span class="survey-main-title">{{ s.title_ar if lang == 'ar' else s.title_en }}</span>
-                <span class="survey-secondary-title">{{ s.title_en if lang == 'ar' else s.title_ar }}</span>
+                <strong style="color: var(--alj-purple-primary); font-size: 1.05rem;">{{ s.title_ar if lang == 'ar' else s.title_en }}</strong>
+                <span class="survey-subtitle-small">{{ s.title_en if lang == 'ar' else s.title_ar }}</span>
                 
                 {% if s.status == 'published' %}
-                <div class="dashboard-share-strip">
-                  <span class="share-label-tag">🔗</span>
-                  <code class="dashboard-share-url" title="{{ base_url }}/s/{{ s.public_id }}">{{ base_url }}/s/{{ s.public_id }}</code>
-                  <button type="button" class="btn-copy-chip" onclick="copySurveyLink('{{ base_url }}/s/{{ s.public_id }}', this)">
-                    <span>📋</span> <span class="chip-label">{{ t('admin.copy_link', lang) }}</span>
+                <div class="survey-share-link">
+                  <span class="share-url" id="link-{{ s.public_id }}">{{ base_url }}/s/{{ s.public_id }}</span>
+                  <button type="button" class="btn-copy" onclick="copySurveyLink('{{ base_url }}/s/{{ s.public_id }}', this)">
+                    {{ t('admin.copy_link', lang) }}
                   </button>
                 </div>
                 {% endif %}
@@ -62,77 +56,70 @@
             </td>
 
             <!-- 2. حالة الاستبيان -->
-            <td style="text-align: center; vertical-align: middle;">
+            <td style="text-align: center;">
               {% if s.status == 'published' %}
-                <span class="badge badge-published badge-pill-solid">{{ t('admin.status_published', lang) }}</span>
+                <span class="badge badge-published">{{ t('admin.status_published', lang) }}</span>
               {% elif s.status == 'closed' %}
-                <span class="badge badge-closed badge-pill-solid">{{ t('admin.status_closed', lang) }}</span>
+                <span class="badge badge-closed">{{ t('admin.status_closed', lang) }}</span>
               {% else %}
-                <span class="badge badge-draft badge-pill-solid">{{ t('admin.status_draft', lang) }}</span>
+                <span class="badge badge-draft">{{ t('admin.status_draft', lang) }}</span>
               {% endif %}
             </td>
 
             <!-- 3. عدد المشاركات -->
-            <td style="text-align: center; vertical-align: middle;">
-              <div class="response-count-container">
-                <span class="response-count-pill">{{ survey_stats.get(s.id, 0) }}</span>
-                <span class="text-xs text-muted" style="display:block; margin-top:2px;">{{ t('admin.participants_label', lang) }}</span>
-              </div>
+            <td style="text-align: center;">
+              <span class="response-count-pill">{{ survey_stats.get(s.id, 0) }}</span>
             </td>
 
             <!-- 4. تاريخ الإنشاء -->
-            <td style="text-align: center; vertical-align: middle;">
-              <span class="text-date">{{ s.created_at.strftime('%Y-%m-%d') }}</span>
+            <td style="text-align: center;">
+              <span class="text-muted text-sm">{{ s.created_at.strftime('%Y-%m-%d') }}</span>
             </td>
 
-            <!-- 5. أزرار الإجراءات والتحكم متضمنة زر الحذف -->
-            <td style="vertical-align: middle;">
-              <div class="dashboard-row-actions">
-                <!-- زر استعراض النتائج والتحليلات -->
-                <a href="/admin/surveys/{{ s.id }}/results" class="btn-dash-action action-results" title="{{ t('admin.action_results', lang) }}">
-                  <span>📊</span> <span>{{ t('admin.action_results', lang) }}</span>
+            <!-- 5. أزرار الإجراءات المتناسقة بنمط النظام القياسي -->
+            <td style="text-align: center;">
+              <div class="row-actions" style="justify-content: center;">
+                <a href="/admin/surveys/{{ s.id }}/results" class="btn btn-primary btn-xs">
+                  {{ t('admin.action_results', lang) }}
+                </a>
+                
+                <a href="/admin/surveys/{{ s.id }}/edit" class="btn btn-outline btn-xs">
+                  {{ t('admin.action_edit', lang) }}
                 </a>
 
-                <!-- زر تعديل الاستبيان -->
-                <a href="/admin/surveys/{{ s.id }}/edit" class="btn-dash-action action-edit" title="{{ t('admin.action_edit', lang) }}">
-                  <span>✏️</span> <span>{{ t('admin.action_edit', lang) }}</span>
-                </a>
-
-                <!-- زر نسخ الاستبيان -->
                 <form method="POST" action="/admin/surveys/{{ s.id }}/duplicate" style="display:inline;">
-                  <button type="submit" class="btn-dash-action action-duplicate" title="{{ t('admin.action_duplicate', lang) }}">
-                    <span>📑</span> <span>{{ t('admin.action_duplicate', lang) }}</span>
+                  <button type="submit" class="btn btn-ghost btn-xs">
+                    {{ t('admin.action_duplicate', lang) }}
                   </button>
                 </form>
 
-                <!-- زر النشر أو الإغلاق أو إعادة الفتح -->
                 {% if s.status == 'draft' %}
                 <form method="POST" action="/admin/surveys/{{ s.id }}/status" style="display:inline;">
                   <input type="hidden" name="status_val" value="published">
-                  <button type="submit" class="btn-dash-action action-publish" title="{{ t('admin.action_publish', lang) }}">
-                    <span>🚀</span> <span>{{ t('admin.action_publish', lang) }}</span>
+                  <button type="submit" class="btn btn-secondary btn-xs">
+                    {{ t('admin.action_publish', lang) }}
                   </button>
                 </form>
                 {% elif s.status == 'published' %}
                 <form method="POST" action="/admin/surveys/{{ s.id }}/status" style="display:inline;">
                   <input type="hidden" name="status_val" value="closed">
-                  <button type="submit" class="btn-dash-action action-close" title="{{ t('admin.action_close', lang) }}">
-                    <span>🔒</span> <span>{{ t('admin.action_close', lang) }}</span>
+                  <button type="submit" class="btn btn-danger-outline btn-xs">
+                    {{ t('admin.action_close', lang) }}
                   </button>
                 </form>
                 {% elif s.status == 'closed' %}
                 <form method="POST" action="/admin/surveys/{{ s.id }}/status" style="display:inline;">
                   <input type="hidden" name="status_val" value="published">
-                  <button type="submit" class="btn-dash-action action-publish" title="{{ t('admin.action_reopen', lang) }}">
-                    <span>🔓</span> <span>{{ t('admin.action_reopen', lang) }}</span>
+                  <button type="submit" class="btn btn-secondary btn-xs">
+                    {{ t('admin.action_reopen', lang) }}
                   </button>
                 </form>
                 {% endif %}
 
-                <!-- زر حذف الاستبيان نهائياً (جديد) -->
+                <!-- زر حذف نظيف ومتناسق بزر أحمر قياسي من النظام -->
                 <form method="POST" action="/admin/surveys/{{ s.id }}/delete" style="display:inline;" onsubmit="return confirm('{{ t('admin.delete_confirm_msg', lang) }}');">
-                  <button type="submit" class="btn-dash-action action-delete" title="{{ t('admin.action_delete', lang) }}">
-                    <span>🗑️</span> <span>{{ t('admin.action_delete', lang) }}</span>
+                  <button type="submit" class="btn btn-danger-outline btn-xs">
+                    {{ t('admin.action_delete', lang) }}
                   </button>
                 </form>
               </div>
@@ -144,11 +131,11 @@
     </div>
   </div>
   {% else %}
-  <div class="empty-state card" style="padding: 4rem 2rem;">
-    <div class="empty-state-icon" style="font-size: 3.5rem; margin-bottom: 1rem;">📋</div>
-    <h3 style="color:var(--alj-purple-primary); margin-bottom:0.5rem;">{{ t('admin.no_surveys', lang) }}</h3>
-    <div style="margin-top: 1.5rem; display: flex; gap: 0.75rem; justify-content: center;">
-      <a href="/admin/surveys/new" class="btn btn-primary btn-lg">{{ t('admin.create_manual_btn', lang) }}</a>
+  <div class="empty-state card">
+    <div class="empty-state-icon">📋</div>
+    <h3>{{ t('admin.no_surveys', lang) }}</h3>
+    <div style="margin-top: 1rem; display: flex; gap: 0.75rem; justify-content: center;">
+      <a href="/admin/surveys/new" class="btn btn-primary">{{ t('admin.create_manual_btn', lang) }}</a>
     </div>
   </div>
   {% endif %}
@@ -160,12 +147,11 @@
 <script>
 function copySurveyLink(url, btnElement) {
   navigator.clipboard.writeText(url).then(() => {
-    const labelSpan = btnElement.querySelector('.chip-label') || btnElement;
-    const origText = labelSpan.innerText;
+    const origText = btnElement.innerText;
     btnElement.classList.add('copied');
-    labelSpan.innerText = "{{ t('admin.link_copied', lang) }}";
+    btnElement.innerText = "{{ t('admin.link_copied', lang) }}";
     setTimeout(() => {
-      labelSpan.innerText = origText;
+      btnElement.innerText = origText;
       btnElement.classList.remove('copied');
     }, 2000);
   }).catch(() => {
