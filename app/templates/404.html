@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'صفحة غير موجودة' if lang == 'ar' else 'Page Not Found' }} - {{ t('app.company', lang) }}{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 650px; margin: 3rem auto; text-align: center;">
+  <div class="card" style="padding: 3rem 2rem; border-radius: var(--radius-lg); box-shadow: var(--shadow-md);">
+    <div style="font-size: 3.5rem; margin-bottom: 1rem;">🔍</div>
+    <h2 style="color: var(--alj-purple-primary); margin-bottom: 0.75rem;">
+      {{ 'الاستبيان أو الصفحة غير متاحة' if lang == 'ar' else 'Survey or Page Unavailable' }}
+    </h2>
+    <p class="text-muted" style="font-size: 1.05rem; line-height: 1.7; margin-bottom: 2rem;">
+      {{ message or ('الاستبيان المطلوب غير موجود أو ما زال في حالة مسودة وغير منشور حالياً.' if lang == 'ar' else 'The requested survey does not exist or is currently in draft status.') }}
+    </p>
+    <div>
+      <a href="/admin/dashboard" class="btn btn-primary" style="display: inline-block;">
+        {{ t('admin.back_to_dashboard', lang) }}
+      </a>
+    </div>
+  </div>
+</div>
+{% endblock %}

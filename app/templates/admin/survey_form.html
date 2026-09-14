@@ -1,0 +1,256 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('admin.edit_survey_title' if survey else 'admin.new_survey_title', lang) }} - {{ t('app.company', lang) }}{% endblock %}
+
+{% block nav_items %}
+<a href="/admin/dashboard" class="btn-link-light">{{ t('admin.back_to_dashboard', lang) }}</a>
+<a href="/admin/logout" class="btn-link-light">{{ t('nav.logout', lang) }}</a>
+{% endblock %}
+
+{% block content %}
+<div class="container admin-container">
+  <div class="admin-header-bar">
+    <div>
+      <h1 class="admin-page-title">{{ t('admin.edit_survey_title' if survey else 'admin.new_survey_title', lang) }}</h1>
+    </div>
+    <a href="/admin/dashboard" class="btn btn-outline">{{ t('admin.back_to_dashboard', lang) }}</a>
+  </div>
+
+  {% if response_count and response_count > 0 %}
+  <div class="alert alert-warning">
+    ⚠️ {{ t('admin.locked_edit_notice', lang, count=response_count) }}
+  </div>
+  {% endif %}
+
+  <form method="POST" action="/admin/surveys/save" id="survey-form" enctype="multipart/form-data" onsubmit="prepareSubmit(event)">
+    {% if survey %}
+    <input type="hidden" name="survey_id" value="{{ survey.id }}">
+    {% endif %}
+    <input type="hidden" name="questions_json" id="questions_json">
+    <input type="hidden" name="theme_style" value="creative">
+
+    <!-- المعلومات الأساسية -->
+    <div class="card" style="margin-bottom: var(--spacing-xl);">
+      <h2 class="card-title" style="margin-bottom: var(--spacing-lg);">{{ t('admin.basic_info_section', lang) }}</h2>
+
+      <div class="grid-2col">
+        <div class="form-group">
+          <label class="form-label" for="title_ar">{{ t('admin.title_ar_label', lang) }} *</label>
+          <input type="text" id="title_ar" name="title_ar" class="form-input" value="{{ survey.title_ar if survey else '' }}" required>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="title_en">{{ t('admin.title_en_label', lang) }} *</label>
+          <input type="text" id="title_en" name="title_en" class="form-input" value="{{ survey.title_en if survey else '' }}" required dir="ltr">
+        </div>
+      </div>
+
+      <div class="grid-2col">
+        <div class="form-group">
+          <label class="form-label" for="description_ar">{{ t('admin.desc_ar_label', lang) }}</label>
+          <textarea id="description_ar" name="description_ar" class="form-input" rows="3">{{ survey.description_ar if survey else '' }}</textarea>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="description_en">{{ t('admin.desc_en_label', lang) }}</label>
+          <textarea id="description_en" name="description_en" class="form-input" rows="3" dir="ltr">{{ survey.description_en if survey else '' }}</textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- منشئ الأسئلة والخيارات -->
+    <div class="card" style="margin-bottom: var(--spacing-xl);">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-lg);">
+        <h2 class="card-title">{{ t('admin.questions_builder_title', lang) }}</h2>
+        {% if not (response_count and response_count > 0) %}
+        <button type="button" class="btn btn-secondary btn-sm" onclick="addQuestion()">
+          {{ t('admin.add_question_btn', lang) }}
+        </button>
+        {% endif %}
+      </div>
+
+      <div id="questions-container">
+        <!-- يتم ملؤه تلقائياً بالـ JavaScript -->
+      </div>
+    </div>
+
+    <div class="form-actions-bar">
+      <button type="submit" class="btn btn-primary btn-lg">
+        💾 {{ t('admin.save_btn', lang) }}
+      </button>
+      <a href="/admin/dashboard" class="btn btn-outline btn-lg">
+        {{ t('admin.cancel_btn', lang) }}
+      </a>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+let questions = [];
+
+{% if survey and survey.questions %}
+questions = [
+  {% for q in survey.questions %}
+  {
+    key: "{{ q.question_key }}",
+    question_type: "{{ q.question_type }}",
+    text_ar: {{ q.text_ar | tojson }},
+    text_en: {{ q.text_en | tojson }},
+    is_required: {{ 'true' if q.is_required else 'false' }},
+    options: {{ q.get_options() | tojson }}
+  },
+  {% endfor %}
+];
+{% else %}
+questions = [
+  {
+    key: "q_1",
+    question_type: "single_choice",
+    text_ar: "ما مدى رضاك عن بيئة العمل في الشركة؟",
+    text_en: "How satisfied are you with the company workplace environment?",
+    is_required: true,
+    options: [
+      { key: "opt_1", text_ar: "راضٍ جداً", text_en: "Very Satisfied" },
+      { key: "opt_2", text_ar: "راضٍ", text_en: "Satisfied" },
+      { key: "opt_3", text_ar: "غير راضٍ", text_en: "Dissatisfied" }
+    ]
+  }
+];
+{% endif %}
+
+const isLocked = {{ 'true' if (response_count and response_count > 0) else 'false' }};
+
+function renderQuestions() {
+  const container = document.getElementById('questions-container');
+  container.innerHTML = '';
+
+  questions.forEach((q, qIndex) => {
+    const qDiv = document.createElement('div');
+    qDiv.className = 'question-builder-card';
+    qDiv.innerHTML = `
+      <div class="q-header">
+        <span class="q-badge">{{ t('admin.question_prefix', lang) }} ${qIndex + 1}</span>
+        ${!isLocked ? `<button type="button" class="btn-text-danger" onclick="removeQuestion(${qIndex})">🗑️ {{ t('admin.remove_btn', lang) }}</button>` : ''}
+      </div>
+
+      <div class="grid-2col" style="margin-top: 0.75rem;">
+        <div class="form-group">
+          <label class="form-label">{{ t('admin.q_text_ar', lang) }} *</label>
+          <input type="text" class="form-input" value="${escapeHtml(q.text_ar)}" onchange="questions[${qIndex}].text_ar = this.value" required ${isLocked ? 'disabled' : ''}>
+        </div>
+        <div class="form-group">
+          <label class="form-label">{{ t('admin.q_text_en', lang) }} *</label>
+          <input type="text" class="form-input" dir="ltr" value="${escapeHtml(q.text_en)}" onchange="questions[${qIndex}].text_en = this.value" required ${isLocked ? 'disabled' : ''}>
+        </div>
+      </div>
+
+      <div class="grid-2col">
+        <div class="form-group">
+          <label class="form-label">{{ t('admin.q_type', lang) }}</label>
+          <select class="form-input" onchange="changeQuestionType(${qIndex}, this.value)" ${isLocked ? 'disabled' : ''}>
+            <option value="single_choice" ${q.question_type === 'single_choice' ? 'selected' : ''}>{{ t('admin.q_type_single', lang) }}</option>
+            <option value="multiple_choice" ${q.question_type === 'multiple_choice' ? 'selected' : ''}>{{ t('admin.q_type_multiple', lang) }}</option>
+            <option value="text" ${q.question_type === 'text' ? 'selected' : ''}>{{ t('admin.q_type_text', lang) }}</option>
+          </select>
+        </div>
+
+        <div class="form-group" style="display: flex; align-items: flex-end; padding-top: 1.8rem;">
+          <label class="checkbox-label">
+            <input type="checkbox" ${q.is_required ? 'checked' : ''} onchange="questions[${qIndex}].is_required = this.checked" ${isLocked ? 'disabled' : ''}>
+            <span>{{ t('admin.q_required', lang) }}</span>
+          </label>
+        </div>
+      </div>
+
+      ${(q.question_type === 'single_choice' || q.question_type === 'multiple_choice') ? `
+        <div class="options-builder-section">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 0.5rem;">
+            <strong style="font-size: 0.9rem; color: var(--alj-purple-primary);">{{ t('admin.q_options_title', lang) }}</strong>
+            ${!isLocked ? `<button type="button" class="btn btn-outline btn-xs" onclick="addOption(${qIndex})">{{ t('admin.add_option_btn', lang) }}</button>` : ''}
+          </div>
+          <div id="options-for-${qIndex}">
+            ${q.options.map((opt, optIndex) => `
+              <div class="option-row">
+                <input type="text" class="form-input form-input-sm" placeholder="{{ t('admin.opt_text_ar', lang) }}" value="${escapeHtml(opt.text_ar)}" onchange="questions[${qIndex}].options[${optIndex}].text_ar = this.value" ${isLocked ? 'disabled' : ''}>
+                <input type="text" class="form-input form-input-sm" dir="ltr" placeholder="{{ t('admin.opt_text_en', lang) }}" value="${escapeHtml(opt.text_en)}" onchange="questions[${qIndex}].options[${optIndex}].text_en = this.value" ${isLocked ? 'disabled' : ''}>
+                ${!isLocked && q.options.length > 2 ? `
+                  <button type="button" class="btn-text-danger" onclick="removeOption(${qIndex}, ${optIndex})">✕</button>
+                ` : ''}
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      ` : ''}
+    `;
+    container.appendChild(qDiv);
+  });
+}
+
+function addQuestion() {
+  const newIdx = questions.length + 1;
+  questions.push({
+    key: `q_${newIdx}`,
+    question_type: "single_choice",
+    text_ar: "",
+    text_en: "",
+    is_required: true,
+    options: [
+      { key: "opt_1", text_ar: "", text_en: "" },
+      { key: "opt_2", text_ar: "", text_en: "" }
+    ]
+  });
+  renderQuestions();
+}
+
+function removeQuestion(index) {
+  if (questions.length <= 1) {
+    alert("{{ t('admin.min_one_question_alert', lang) }}");
+    return;
+  }
+  questions.splice(index, 1);
+  renderQuestions();
+}
+
+function changeQuestionType(qIndex, newType) {
+  questions[qIndex].question_type = newType;
+  if ((newType === 'single_choice' || newType === 'multiple_choice') && questions[qIndex].options.length === 0) {
+    questions[qIndex].options = [
+      { key: "opt_1", text_ar: "", text_en: "" },
+      { key: "opt_2", text_ar: "", text_en: "" }
+    ];
+  }
+  renderQuestions();
+}
+
+function addOption(qIndex) {
+  const optIdx = questions[qIndex].options.length + 1;
+  questions[qIndex].options.push({
+    key: `opt_${optIdx}`,
+    text_ar: "",
+    text_en: ""
+  });
+  renderQuestions();
+}
+
+function removeOption(qIndex, optIndex) {
+  if (questions[qIndex].options.length <= 2) return;
+  questions[qIndex].options.splice(optIndex, 1);
+  renderQuestions();
+}
+
+function escapeHtml(text) {
+  if (!text) return '';
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function prepareSubmit(e) {
+  document.getElementById('questions_json').value = JSON.stringify(questions);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  renderQuestions();
+});
+</script>
+{% endblock %}

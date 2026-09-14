@@ -1,0 +1,252 @@
+{% extends "base.html" %}
+
+{% block title %}{{ survey.title_ar if lang == 'ar' else survey.title_en }} - {{ t('admin.results_title', lang) }}{% endblock %}
+
+{% block nav_items %}
+<a href="/admin/dashboard" class="btn-link-light">{{ t('admin.back_to_dashboard', lang) }}</a>
+<a href="/admin/logout" class="btn-link-light">{{ t('nav.logout', lang) }}</a>
+{% endblock %}
+
+{% block content %}
+<div class="container admin-container">
+  <!-- رأس صفحة النتائج الفاخر -->
+  <div class="results-hero-header">
+    <div class="results-hero-info">
+      <div class="badge-pill" style="display:inline-flex; align-items:center; gap:0.4rem; margin-bottom: 0.5rem; background: rgba(255, 205, 0, 0.15); border: 1px solid rgba(255, 205, 0, 0.4); color: var(--alj-purple-primary); font-weight: 700;">
+        <span>📊</span> <span>{{ t('admin.overview_kpi_title', lang) }}</span>
+      </div>
+      <h1 class="admin-page-title" style="margin-bottom: 0.35rem;">{{ survey.title_ar if lang == 'ar' else survey.title_en }}</h1>
+      <p class="text-muted" style="margin-bottom: 0.25rem;">{{ survey.title_en if lang == 'ar' else survey.title_ar }}</p>
+      
+      <!-- رابط الاستبيان المباشر مع زر النسخ -->
+      <div class="survey-direct-link-box">
+        <span class="text-xs text-muted">🔗 {{ t('admin.survey_link_label', lang) }}:</span>
+        <code class="survey-direct-url">{{ base_url }}/s/{{ survey.public_id }}</code>
+        <button type="button" class="btn-copy-link" onclick="copySurveyLink('{{ base_url }}/s/{{ survey.public_id }}', this)">
+          <span>📋</span> <span class="btn-copy-text">{{ t('admin.copy_survey_link', lang) }}</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- أزرار الإجراءات العلوية: تصدير إكسل والعودة -->
+    <div class="results-hero-actions">
+      <a href="/admin/surveys/{{ survey.id }}/export/excel" class="btn btn-excel-export">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+          <polyline points="14 2 14 8 20 8"></polyline>
+          <line x1="16" y1="13" x2="8" y2="13"></line>
+          <line x1="16" y1="17" x2="8" y2="17"></line>
+          <polyline points="10 9 9 9 8 9"></polyline>
+        </svg>
+        <span>{{ t('admin.export_excel_btn', lang) }}</span>
+      </a>
+      <a href="/admin/dashboard" class="btn btn-outline">
+        {{ t('admin.back_to_dashboard', lang) }}
+      </a>
+    </div>
+  </div>
+
+  <!-- شبكة بطاقات المؤشرات الرئيسية (KPIs) - تصميم تنفيذي راقٍ ومطابق لهوية عبد اللطيف جميل -->
+  <div class="stats-overview-grid" style="margin-top: var(--spacing-lg); grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));">
+    <!-- 1. إجمالي الموظفين المشاركين -->
+    <div class="card stat-card executive-kpi">
+      <div class="kpi-icon-bubble" style="background: rgba(60, 16, 83, 0.08); color: var(--alj-purple-primary);">👥</div>
+      <div class="kpi-content">
+        <span class="stat-label">{{ t('admin.total_participants', lang) }}</span>
+        <div class="kpi-number-row">
+          <span class="stat-number">{{ total_responses }}</span>
+          <span class="kpi-unit">{{ t('admin.responses_count_unit', lang) }}</span>
+        </div>
+        <span class="text-xs text-muted">{{ t('admin.unique_employee_sub', lang) }}</span>
+      </div>
+    </div>
+
+    <!-- 2. معدل الإكمال الإجمالي -->
+    <div class="card stat-card executive-kpi">
+      <div class="kpi-icon-bubble" style="background: rgba(46, 125, 50, 0.1); color: var(--color-success);">🎯</div>
+      <div class="kpi-content">
+        <span class="stat-label">{{ t('admin.overall_completion_rate', lang) }}</span>
+        <div class="kpi-number-row">
+          <span class="stat-number" style="color: var(--color-success);">{{ overall_completion_rate }}%</span>
+        </div>
+        <span class="text-xs text-muted">{{ t('admin.avg_responses_across', lang) }}</span>
+      </div>
+    </div>
+
+    <!-- 3. عدد الأسئلة والتغطية -->
+    <div class="card stat-card executive-kpi">
+      <div class="kpi-icon-bubble" style="background: rgba(255, 205, 0, 0.18); color: #B48600;">📝</div>
+      <div class="kpi-content">
+        <span class="stat-label">{{ t('admin.questions_count_label', lang) }}</span>
+        <div class="kpi-number-row">
+          <span class="stat-number">{{ stats|length }}</span>
+        </div>
+        <span class="text-xs text-muted">{{ t('admin.question_breakdown_title', lang) }}</span>
+      </div>
+    </div>
+
+    <!-- 4. حالة الاستبيان التشغيلية -->
+    <div class="card stat-card executive-kpi">
+      <div class="kpi-icon-bubble" style="background: rgba(100, 116, 139, 0.1); color: #475569;">⚙️</div>
+      <div class="kpi-content">
+        <span class="stat-label">{{ t('admin.table_status', lang) }}</span>
+        <div class="kpi-status-badge-wrap" style="margin-top: 0.35rem; margin-bottom: 0.25rem;">
+          {% if survey.status == 'published' %}
+          <span class="badge badge-published" style="font-size: 0.85rem; padding: 0.35rem 0.85rem;">{{ t('admin.status_published', lang) }}</span>
+          {% elif survey.status == 'closed' %}
+          <span class="badge badge-closed" style="font-size: 0.85rem; padding: 0.35rem 0.85rem;">{{ t('admin.status_closed', lang) }}</span>
+          {% else %}
+          <span class="badge badge-draft" style="font-size: 0.85rem; padding: 0.35rem 0.85rem;">{{ t('admin.status_draft', lang) }}</span>
+          {% endif %}
+        </div>
+        <span class="text-xs text-muted">{{ t('admin.survey_performance', lang) }}</span>
+      </div>
+    </div>
+  </div>
+
+  {% if total_responses == 0 %}
+  <div class="card empty-state" style="margin-top: var(--spacing-xl); padding: 3.5rem 2rem;">
+    <div class="empty-state-icon" style="font-size: 3.5rem; margin-bottom: 1rem;">📊</div>
+    <h3 style="color: var(--alj-purple-primary); margin-bottom: 0.5rem;">{{ t('admin.no_responses_yet', lang) }}</h3>
+    <p class="text-muted" style="max-width: 480px; margin: 0 auto 1.5rem auto;">{{ t('admin.no_responses_sub', lang) }}</p>
+    <button type="button" class="btn btn-secondary" onclick="copySurveyLink('{{ base_url }}/s/{{ survey.public_id }}', this)">
+      <span>🔗</span> <span>{{ t('admin.copy_survey_link', lang) }}</span>
+    </button>
+  </div>
+  {% else %}
+  
+  <!-- قائمة الأسئلة والتحليلات البيانية المتقدمة -->
+  <div style="margin-top: var(--spacing-xl); margin-bottom: var(--spacing-md); display:flex; justify-content:space-between; align-items:center;">
+    <h2 style="font-size: 1.25rem; color: var(--alj-purple-primary); font-weight: 700;">{{ t('admin.question_breakdown_title', lang) }}</h2>
+    <span class="badge badge-corporate">
+      {{ stats|length }} {{ t('admin.questions_count_label', lang) }}
+    </span>
+  </div>
+
+  <div class="results-questions-list">
+    {% for q_key, item in stats.items() %}
+    {% set q = item.question %}
+    <div class="card result-question-card executive-analytics-card">
+      
+      <!-- ترويسة السؤال -->
+      <div class="q-header">
+        <div style="flex: 1;">
+          <h3 class="card-title" style="font-size: 1.15rem; color: var(--alj-purple-primary); margin-bottom: 0.3rem;">
+            {{ loop.index }}. {{ q.text_ar if lang == 'ar' else q.text_en }}
+          </h3>
+          <span class="text-muted text-sm" style="display:block;">
+            {{ q.text_en if lang == 'ar' else q.text_ar }}
+          </span>
+        </div>
+
+        <div class="q-badges-wrapper">
+          <span class="badge badge-corporate">
+            {% if q.question_type == 'single_choice' %}
+              {{ t('admin.q_type_single', lang) }}
+            {% elif q.question_type == 'multiple_choice' %}
+              {{ t('admin.q_type_multiple', lang) }}
+            {% else %}
+              {{ t('admin.q_type_text', lang) }}
+            {% endif %}
+          </span>
+          <span class="question-stat-badge">
+            👥 {{ item.answered_count }} {{ t('admin.participants_label', lang) }} ({{ item.response_rate }}%)
+          </span>
+        </div>
+      </div>
+
+      <!-- تحليل الأسئلة متعددة الخيارات (Single / Multiple Choice) -->
+      {% if q.question_type in ['single_choice', 'multiple_choice'] %}
+      <div class="options-results-table">
+        {% for opt in q.get_options() %}
+        {% set count = item.opt_counts.get(opt.key, 0) %}
+        {% set pct = (count / total_responses * 100)|round(1) if total_responses > 0 else 0 %}
+        {% set is_top = (item.top_opt_key == opt.key and count > 0) %}
+        
+        <div class="result-option-row {% if is_top %}top-rated-choice{% endif %}">
+          <div class="opt-label-group">
+            <span class="opt-name">
+              {{ opt.text_ar if lang == 'ar' else opt.text_en }}
+              {% if is_top %}
+              <span class="top-choice-tag" title="{{ t('admin.top_choice_celebration', lang) }}">
+                ⭐ {{ t('admin.top_rated_choice_badge', lang) }}
+              </span>
+              {% endif %}
+            </span>
+
+            <div class="opt-metric-pills">
+              <span class="opt-votes-count"><strong>{{ count }}</strong> {{ t('admin.vote_unit', lang) }}</span>
+              <span class="opt-stats-pill">{{ pct }}%</span>
+            </div>
+          </div>
+
+          <!-- شريط تقدم تفاعلي احترافي ذو تدرج لوني -->
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill {% if is_top %}fill-top-choice{% endif %}" style="width: {{ pct }}%;"></div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+
+      <!-- ملخص مؤشرات السؤال -->
+      <div class="question-footer-summary">
+        <span>{{ t('admin.total_selections_for_q', lang) }}: <strong>{{ item.total_selections }}</strong></span>
+        <span>{{ t('admin.q_interaction_rate', lang) }}: <strong>{{ item.response_rate }}%</strong></span>
+      </div>
+
+      {% else %}
+      <!-- تحليل الإجابات النصية المفتوحة -->
+      <div class="text-responses-box">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 0.85rem;">
+          <strong style="font-size: 0.95rem; color:var(--alj-purple-primary);">
+            💬 {{ t('admin.text_answers_received_title', lang) }} ({{ item.text_answers|length }}):
+          </strong>
+          <span class="badge badge-corporate">{{ item.response_rate }}% {{ t('admin.q_participation_rate', lang) }}</span>
+        </div>
+
+        {% if item.text_answers %}
+        <ul class="text-answers-list">
+          {% for ans in item.text_answers %}
+          <li class="text-answer-item">
+            <span class="quote-mark">“</span>
+            <span>{{ ans }}</span>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="text-muted text-sm" style="padding: 1rem 0; text-align:center;">{{ t('admin.no_text_answers_yet', lang) }}</p>
+        {% endif %}
+      </div>
+      {% endif %}
+
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function copySurveyLink(url, btnElement) {
+  navigator.clipboard.writeText(url).then(() => {
+    const originalHtml = btnElement.innerHTML;
+    btnElement.classList.add('copied');
+    btnElement.innerHTML = `<span>✓</span> <span>{{ t('admin.link_copied', lang) }}</span>`;
+    setTimeout(() => {
+      btnElement.innerHTML = originalHtml;
+      btnElement.classList.remove('copied');
+    }, 2200);
+  }).catch(() => {
+    // fallback
+    const input = document.createElement('input');
+    input.value = url;
+    document.body.appendChild(input);
+    input.select();
+    document.execCommand('copy');
+    document.body.removeChild(input);
+    alert("{{ t('admin.link_copied', lang) }}");
+  });
+}
+</script>
+{% endblock %}

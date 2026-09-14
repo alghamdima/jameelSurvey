@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}" dir="{{ 'rtl' if lang == 'ar' else 'ltr' }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>{% block title %}{{ t('app.name', lang) }} - {{ t('app.company', lang) }}{% endblock %}</title>
+  
+  <!-- أيقونة الموقع الرسمية (Favicon) لشعار عبد اللطيف جميل للتمويل -->
+  <link rel="icon" type="image/png" href="/static/img/favicon.png">
+  <link rel="apple-touch-icon" href="/static/img/favicon.png">
+  
+  <!-- ملف الأنماط الأساسي بهوية عبد اللطيف جميل للتمويل -->
+  <link rel="stylesheet" href="/static/css/style.css">
+  {% block extra_head %}{% endblock %}
+</head>
+<body class="{% block body_class %}{% endblock %}">
+
+  {% block navbar %}
+  <!-- شريط التنقل العلوي المؤسسي -->
+  <header class="navbar">
+    <div class="container nav-wrapper">
+      <a href="/" class="brand-group" title="{{ t('app.company', lang) }}">
+        {% if lang == 'ar' %}
+        <img src="/static/img/logo-ar/logo-white.png" alt="عبد اللطيف جميل للتمويل" class="brand-logo-img">
+        {% else %}
+        <img src="/static/img/logo-en/logo-white.png" alt="Abdul Latif Jameel Finance" class="brand-logo-img">
+        {% endif %}
+      </a>
+      
+      <div class="nav-actions">
+        {% block nav_items %}{% endblock %}
+        <!-- زر تبديل اللغة مع حفظ التفضيل عبر المسار المخصص -->
+        <a href="/set-language?lang={{ t('nav.lang_target', lang) }}&redirect={{ request.url.path }}" class="btn-lang" title="Switch Language">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="2" y1="12" x2="22" y2="12"></line>
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+          </svg>
+          <span>{{ t('nav.lang_switch', lang) }}</span>
+        </a>
+      </div>
+    </div>
+  </header>
+  {% endblock %}
+
+  <!-- محتوى الصفحة الرئيسي -->
+  <main class="main-content">
+    {% block content %}{% endblock %}
+  </main>
+
+  <!-- تذييل الصفحة الرسمي -->
+  <footer class="footer">
+    <div class="container footer-content">
+      <div class="footer-text">
+        {{ t('app.copyright', lang, year=current_year) }}
+      </div>
+    </div>
+  </footer>
+
+  <!-- السكريبتات الأساسية الخفيفة -->
+  <script src="/static/js/main.js"></script>
+  {% block extra_scripts %}{% endblock %}
+</body>
+</html>

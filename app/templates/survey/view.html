@@ -1,0 +1,281 @@
+{% extends "base.html" %}
+
+{% block title %}{{ survey.title_ar if lang == 'ar' else survey.title_en }} - {{ t('app.company', lang) }}{% endblock %}
+
+{% block extra_head %}
+{% if survey.background_url %}
+<style>
+  body {
+    background: url('{{ survey.background_url }}') no-repeat center center fixed !important;
+    background-size: cover !important;
+  }
+  .survey-container {
+    background: rgba(255, 255, 255, 0.94);
+    padding: var(--spacing-xl);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+    margin-top: var(--spacing-lg);
+    backdrop-filter: blur(4px);
+  }
+</style>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="container survey-container {% if survey.theme_style == 'creative' %}theme-creative{% else %}theme-classic{% endif %}">
+  
+  {% if survey.header_image_url %}
+  <div class="survey-banner-wrapper">
+    <img src="{{ survey.header_image_url }}" alt="Header Banner" class="survey-banner-img" onerror="this.onerror=null; this.parentElement.style.display='none';">
+  </div>
+  {% endif %}
+
+  <div class="survey-header-card card">
+    <h1 class="survey-title">{{ survey.title_ar if lang == 'ar' else survey.title_en }}</h1>
+    {% if survey.description_ar or survey.description_en %}
+    <p class="survey-desc">
+      {{ survey.description_ar if lang == 'ar' else survey.description_en }}
+    </p>
+    {% endif %}
+  </div>
+
+  <!-- شريط تقدم الإجابة التفاعلي الحي (Interactive Progress Bar) -->
+  <div class="survey-progress-wrapper" id="survey-progress-wrapper" style="{% if not verified_emp_id %}display: none;{% endif %}">
+    <span class="survey-progress-text" id="progress-text">0 / {{ questions|length }}</span>
+    <div class="survey-progress-bar-bg">
+      <div class="survey-progress-bar-fill" id="progress-fill"></div>
+    </div>
+  </div>
+
+  <!-- نموذج الأسئلة (يظهر فقط بعد إتمام التحقق من الرقم الوظيفي) -->
+  <div id="survey-questions-section" style="{% if not verified_emp_id %}display: none;{% endif %}">
+    <form method="POST" action="/s/{{ survey.public_id }}/submit" id="survey-submit-form" onsubmit="handleSurveySubmit(event)">
+      <input type="hidden" name="participation_token" id="participation_token" value="{{ token or '' }}">
+
+      <div class="questions-list">
+        {% for q in questions %}
+        <div class="card question-card" id="card-{{ q.question_key }}">
+          <div class="q-title-row">
+            <h3 class="q-title">
+              <span class="q-num">{{ loop.index }}</span>
+              <span>{{ q.text_ar if lang == 'ar' else q.text_en }}</span>
+              {% if q.is_required %}
+              <span class="required-star" title="{{ t('survey.required_indicator', lang) }}">*</span>
+              {% endif %}
+            </h3>
+          </div>
+
+          <div class="q-body">
+            {% if q.question_type == 'single_choice' %}
+              <div class="options-group {% if survey.theme_style == 'creative' %}creative-grid{% endif %}">
+                {% for opt in q.get_options() %}
+                <label class="option-label {% if survey.theme_style == 'creative' %}creative-btn-tile{% endif %}" for="{{ q.question_key }}_{{ opt.key }}">
+                  <input type="radio" id="{{ q.question_key }}_{{ opt.key }}" name="{{ q.question_key }}" value="{{ opt.key }}" {% if q.is_required %}required{% endif %} onchange="updateSurveyProgress()">
+                  <span class="option-text">{{ opt.text_ar if lang == 'ar' else opt.text_en }}</span>
+                </label>
+                {% endfor %}
+              </div>
+            {% elif q.question_type == 'multiple_choice' %}
+              <div class="options-group {% if survey.theme_style == 'creative' %}creative-grid{% endif %}">
+                {% for opt in q.get_options() %}
+                <label class="option-label {% if survey.theme_style == 'creative' %}creative-btn-tile{% endif %}" for="{{ q.question_key }}_{{ opt.key }}">
+                  <input type="checkbox" id="{{ q.question_key }}_{{ opt.key }}" name="{{ q.question_key }}" value="{{ opt.key }}" onchange="updateSurveyProgress()">
+                  <span class="option-text">{{ opt.text_ar if lang == 'ar' else opt.text_en }}</span>
+                </label>
+                {% endfor %}
+              </div>
+            {% elif q.question_type == 'text' %}
+              <div class="form-group" style="margin-bottom: 0;">
+                <textarea 
+                  name="{{ q.question_key }}" 
+                  class="form-input creative-textarea" 
+                  placeholder="{{ t('survey.text_input_placeholder', lang) }}" 
+                  {% if q.is_required %}required{% endif %}
+                  oninput="updateSurveyProgress()"
+                ></textarea>
+              </div>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+
+      <div class="submit-actions-bar">
+        <button type="submit" id="submit-survey-btn" class="btn btn-submit-creative">
+          <span>📨</span> {{ t('survey.submit_btn', lang) }}
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- النافذة المنبثقة الإلزامية للرقم الوظيفي (Modal) -->
+<div class="modal-overlay" id="employee-modal" style="{% if verified_emp_id %}display: none;{% endif %}" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+  <div class="modal-card">
+    <div class="modal-header">
+      {% if lang == 'ar' %}
+      <img src="/static/img/logo-ar/logo-dark.png" alt="عبد اللطيف جميل للتمويل" class="brand-logo-img modal-logo">
+      {% else %}
+      <img src="/static/img/logo-en/logo-dark.png" alt="Abdul Latif Jameel Finance" class="brand-logo-img modal-logo">
+      {% endif %}
+      <div style="flex:1;">
+        <h3 id="modal-title" class="modal-title">{{ survey.title_ar if lang == 'ar' else survey.title_en }}</h3>
+      </div>
+    </div>
+
+    <div class="modal-body">
+      <h4 class="modal-heading">{{ t('survey.employee_modal_heading', lang) }}</h4>
+      <p class="modal-sub">{{ t('survey.employee_modal_sub', lang) }}</p>
+
+      <div id="modal-error-alert" class="alert alert-danger" style="display: none;"></div>
+
+      <form id="employee-verify-form" onsubmit="handleEmployeeVerification(event)">
+        <div class="form-group">
+          <label for="employee_id_input" class="form-label">
+            <strong>{{ t('survey.employee_id_label', lang) }}</strong>
+          </label>
+          <input 
+            type="text" 
+            id="employee_id_input" 
+            name="employee_id" 
+            class="form-input form-input-lg" 
+            placeholder="{{ t('survey.employee_id_placeholder', lang) }}" 
+            required 
+            autocomplete="off" 
+            autofocus
+          >
+          <p class="form-help">{{ t('survey.employee_id_help', lang) }}</p>
+        </div>
+
+        <button type="submit" id="verify-submit-btn" class="btn btn-primary btn-block btn-lg">
+          {{ t('survey.start_survey_btn', lang) }}
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const surveyPublicId = "{{ survey.public_id }}";
+const currentLang = "{{ lang }}";
+
+// منع إغلاق الـ Modal بالضغط على Escape أو النقر خارجها
+window.addEventListener('keydown', (e) => {
+  const modal = document.getElementById('employee-modal');
+  if (modal && modal.style.display !== 'none' && e.key === 'Escape') {
+    e.preventDefault();
+  }
+});
+
+async function handleEmployeeVerification(e) {
+  e.preventDefault();
+  const input = document.getElementById('employee_id_input');
+  const errorAlert = document.getElementById('modal-error-alert');
+  const submitBtn = document.getElementById('verify-submit-btn');
+
+  const empId = input.value.trim();
+  if (!empId) {
+    showModalError("{{ t('survey.enter_emp_id_alert', lang) }}");
+    return;
+  }
+
+  errorAlert.style.display = 'none';
+  submitBtn.disabled = true;
+  submitBtn.innerText = "{{ t('survey.verifying', lang) }}";
+
+  try {
+    const formData = new FormData();
+    formData.append('employee_id', empId);
+
+    const resp = await fetch(`/s/${surveyPublicId}/verify-employee`, {
+      method: 'POST',
+      body: formData
+    });
+
+    const data = await resp.json();
+
+    if (resp.ok && data.success) {
+      // نجاح التحقق: حفظ التوكن وفتح الأسئلة
+      document.getElementById('participation_token').value = data.token;
+
+      // إغلاق النافذة المنبثقة وسلاسة التركيز على أول سؤال
+      document.getElementById('employee-modal').style.display = 'none';
+      document.getElementById('survey-questions-section').style.display = 'block';
+      document.getElementById('survey-progress-wrapper').style.display = 'flex';
+      updateSurveyProgress();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      if (data.error === 'already_participated') {
+        const msg = currentLang === 'ar' ? data.message_ar : data.message_en;
+        showModalError(`⛔ ${msg}`);
+      } else {
+        showModalError(data.error || "{{ t('messages.error_default', lang) }}");
+      }
+    }
+  } catch (err) {
+    showModalError("{{ t('survey.connection_error_alert', lang) }}");
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.innerText = "{{ t('survey.start_survey_btn', lang) }}";
+  }
+}
+
+function showModalError(msg) {
+  const errorAlert = document.getElementById('modal-error-alert');
+  errorAlert.innerText = msg;
+  errorAlert.style.display = 'block';
+}
+
+function handleSurveySubmit(e) {
+  const submitBtn = document.getElementById('submit-survey-btn');
+  submitBtn.disabled = true;
+  submitBtn.innerText = "{{ t('survey.submitting', lang) }}";
+}
+
+function updateSurveyProgress() {
+  const form = document.getElementById('survey-submit-form');
+  if (!form) return;
+
+  const cards = document.querySelectorAll('.question-card');
+  let answeredCount = 0;
+
+  cards.forEach(card => {
+    const radios = card.querySelectorAll('input[type="radio"]:checked');
+    const checkboxes = card.querySelectorAll('input[type="checkbox"]:checked');
+    const textareas = card.querySelectorAll('textarea');
+
+    let hasAnswer = radios.length > 0 || checkboxes.length > 0;
+    if (textareas.length > 0 && textareas[0].value.trim().length > 0) {
+      hasAnswer = true;
+    }
+    if (hasAnswer) answeredCount++;
+  });
+
+  const total = cards.length;
+  const pct = total > 0 ? Math.round((answeredCount / total) * 100) : 0;
+
+  const fill = document.getElementById('progress-fill');
+  const text = document.getElementById('progress-text');
+  if (fill) fill.style.width = pct + '%';
+  if (text) {
+    if (currentLang === 'ar') {
+      text.innerText = `${answeredCount} من ${total} أسئلة مكتملة (${pct}%)`;
+    } else {
+      text.innerText = `${answeredCount} of ${total} questions answered (${pct}%)`;
+    }
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const modal = document.getElementById('employee-modal');
+  if (modal && modal.style.display !== 'none') {
+    const input = document.getElementById('employee_id_input');
+    if (input) input.focus();
+  } else {
+    updateSurveyProgress();
+  }
+});
+</script>
+{% endblock %}

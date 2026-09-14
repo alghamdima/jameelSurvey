@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('survey.closed_title', lang) }} - {{ survey.title_ar if lang == 'ar' else survey.title_en }}{% endblock %}
+
+{% block content %}
+<div class="container message-container">
+  <div class="card status-display-card text-center">
+    <div class="status-icon info-icon">🔒</div>
+    <h1 class="status-heading">{{ t('survey.closed_title', lang) }}</h1>
+    <p class="status-message">{{ t('survey.closed_msg', lang) }}</p>
+    
+    <div class="survey-badge-bar">
+      <span>{{ survey.title_ar if lang == 'ar' else survey.title_en }}</span>
+    </div>
+  </div>
+</div>
+{% endblock %}

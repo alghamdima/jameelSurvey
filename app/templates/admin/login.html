@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('admin.login_title', lang) }} - {{ t('app.company', lang) }}{% endblock %}
+
+{% block content %}
+<div class="login-page-wrapper">
+  <div class="login-card">
+    <div class="login-header">
+      {% if lang == 'ar' %}
+      <img src="/static/img/logo-ar/logo-dark.png" alt="عبد اللطيف جميل للتمويل" class="brand-logo-img large">
+      {% else %}
+      <img src="/static/img/logo-en/logo-dark.png" alt="Abdul Latif Jameel Finance" class="brand-logo-img large">
+      {% endif %}
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger" role="alert">
+      {{ t('admin.login_error', lang) }}
+    </div>
+    {% endif %}
+
+    <form method="POST" action="/admin/login" class="login-form">
+      <div class="form-group">
+        <label for="username" class="form-label">{{ t('admin.username_label', lang) }}</label>
+        <input 
+          type="text" 
+          id="username" 
+          name="username" 
+          class="form-input" 
+          value="{{ username or '' }}" 
+          required 
+          autocomplete="username"
+          autofocus
+        >
+      </div>
+
+      <div class="form-group">
+        <label for="password" class="form-label">{{ t('admin.password_label', lang) }}</label>
+        <input 
+          type="password" 
+          id="password" 
+          name="password" 
+          class="form-input" 
+          required 
+          autocomplete="current-password"
+        >
+      </div>
+
+      <button type="submit" class="btn btn-primary btn-block">
+        {{ t('admin.login_btn', lang) }}
+      </button>
+    </form>
+  </div>
+</div>
+{% endblock %}

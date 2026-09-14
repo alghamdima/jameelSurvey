@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="200" viewBox="0 0 800 200">
+  <rect width="800" height="200" fill="#3C1053" rx="12"/>
+  <rect x="10" y="10" width="780" height="180" fill="none" stroke="#FFCD00" stroke-width="2" rx="8"/>
+  <text x="400" y="90" font-family="sans-serif" font-size="28" font-weight="bold" fill="#FFCD00" text-anchor="middle">عبد اللطيف جميل للتمويل</text>
+  <text x="400" y="135" font-family="sans-serif" font-size="20" fill="#FFFFFF" text-anchor="middle">استبيان الرضا الوظيفي وتجربة الموظفين السنوي</text>
+</svg>
