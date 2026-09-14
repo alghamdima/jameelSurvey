@@ -204,8 +204,8 @@ function renderQuestions() {
               <div class="option-row">
                 <input type="text" class="form-input form-input-sm" placeholder="{{ t('admin.opt_text_ar', lang) }}" value="${escapeHtml(opt.text_ar)}" onchange="questions[${qIndex}].options[${optIndex}].text_ar = this.value" ${isLocked ? 'disabled' : ''}>
                 <input type="text" class="form-input form-input-sm" dir="ltr" placeholder="{{ t('admin.opt_text_en', lang) }}" value="${escapeHtml(opt.text_en)}" onchange="questions[${qIndex}].options[${optIndex}].text_en = this.value" ${isLocked ? 'disabled' : ''}>
-                ${!isLocked && q.options.length > 2 ? `
-                  <button type="button" class="btn-text-danger" onclick="removeOption(${qIndex}, ${optIndex})">✕</button>
+                ${!isLocked && q.options.length > 1 ? `
+                  <button type="button" class="btn-text-danger" onclick="removeOption(${qIndex}, ${optIndex})" title="حذف الخيار">✕</button>
                 ` : ''}
               </div>
             `).join('')}
@@ -264,7 +264,10 @@ function addOption(qIndex) {
 }
 
 function removeOption(qIndex, optIndex) {
-  if (questions[qIndex].options.length <= 2) return;
+  if (questions[qIndex].options.length <= 1) {
+    alert("يجب إبقاء خيار واحد على الأقل.");
+    return;
+  }
   questions[qIndex].options.splice(optIndex, 1);
   renderQuestions();
 }
@@ -275,7 +278,18 @@ function escapeHtml(text) {
 }
 
 function prepareSubmit(e) {
-  document.getElementById('questions_json').value = JSON.stringify(questions);
+  // تنظيف وتصفية أي خيارات فارغة تماماً قبل الإرسال
+  const cleanQuestions = questions.map(q => {
+    const copy = { ...q };
+    if (copy.options && Array.isArray(copy.options)) {
+      copy.options = copy.options.filter(opt =>
+        (opt.text_ar && opt.text_ar.trim().length > 0) ||
+        (opt.text_en && opt.text_en.trim().length > 0)
+      );
+    }
+    return copy;
+  });
+  document.getElementById('questions_json').value = JSON.stringify(cleanQuestions);
 }
 
 function previewSelectedImage(input, boxId) {

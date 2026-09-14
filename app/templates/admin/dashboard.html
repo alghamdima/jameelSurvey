@@ -9,6 +9,12 @@
 {% block content %}
 <div class="container admin-container">
   
+  {% if error_msg %}
+  <div class="alert alert-danger" style="margin-bottom: var(--spacing-lg); padding: 1rem 1.25rem; border-radius: var(--radius-md); font-weight: 500;">
+    ⚠️ {{ error_msg }}
+  </div>
+  {% endif %}
+
   <div class="admin-header-bar">
     <div>
       <h1 class="admin-page-title">{{ t('admin.dashboard_title', lang) }}</h1>

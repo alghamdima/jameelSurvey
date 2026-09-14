@@ -96,6 +96,7 @@ async def admin_logout():
 @router.get("/dashboard", response_class=HTMLResponse)
 async def admin_dashboard(request: Request, db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
     lang = get_locale(request)
+    error_msg = request.query_params.get("error")
     surveys = db.query(Survey).order_by(Survey.created_at.desc()).all()
     
     # حساب عدد المشاركات لكل استبيان
@@ -112,6 +113,7 @@ async def admin_dashboard(request: Request, db: Session = Depends(get_db), admin
             "admin": admin,
             "surveys": surveys,
             "survey_stats": survey_stats,
+            "error_msg": error_msg,
             "base_url": settings.BASE_URL.rstrip('/')
         }
     )
@@ -209,19 +211,26 @@ async def admin_save_survey(
     # مسح الأسئلة القديمة وإعادة بناء الأسئلة والخيارات الجديدة
     db.query(SurveyQuestion).filter(SurveyQuestion.survey_id == survey.id).delete()
 
-    new_questions = [
-        SurveyQuestion(
-            survey_id=survey.id,
-            question_key=q.get("key") or f"q_{idx+1}",
-            text_ar=str(q.get("text_ar", "")).strip(),
-            text_en=str(q.get("text_en", "")).strip(),
-            question_type=q.get("question_type") or "single_choice",
-            is_required=bool(q.get("is_required", True)),
-            order_index=idx,
-            options_json=json.dumps(q.get("options") or [], ensure_ascii=False)
+    new_questions = []
+    for idx, q in enumerate(questions_data):
+        raw_opts = q.get("options") or []
+        # تصفية الخيارات الفارغة تماماً حتى لا تعيق نشر الاستبيان
+        clean_opts = [
+            opt for opt in raw_opts
+            if str(opt.get("text_ar", "")).strip() or str(opt.get("text_en", "")).strip()
+        ]
+        new_questions.append(
+            SurveyQuestion(
+                survey_id=survey.id,
+                question_key=q.get("key") or f"q_{idx+1}",
+                text_ar=str(q.get("text_ar", "")).strip(),
+                text_en=str(q.get("text_en", "")).strip(),
+                question_type=q.get("question_type") or "single_choice",
+                is_required=bool(q.get("is_required", True)),
+                order_index=idx,
+                options_json=json.dumps(clean_opts, ensure_ascii=False)
+            )
         )
-        for idx, q in enumerate(questions_data)
-    ]
     if new_questions:
         db.add_all(new_questions)
 
@@ -295,9 +304,12 @@ async def admin_change_survey_status(
                         missing.append(f"ترجمة أحد خيارات السؤال ({q.question_key})")
 
         if missing:
-            raise HTTPException(
-                status_code=400,
-                detail=f"لا يمكن نشر الاستبيان لوجود حقول ناقصة الترجمة: {', '.join(missing)}"
+            import urllib.parse
+            err_text = f"لا يمكن نشر الاستبيان لوجود حقول ناقصة الترجمة: {', '.join(missing)}"
+            err_encoded = urllib.parse.quote(err_text)
+            return RedirectResponse(
+                url=settings.url_for_app(f"/admin/dashboard?error={err_encoded}"),
+                status_code=status.HTTP_303_SEE_OTHER
             )
 
     survey.status = status_val
