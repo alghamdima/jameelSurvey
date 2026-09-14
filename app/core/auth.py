@@ -34,11 +34,17 @@ def require_admin(request: Request, db: Session = Depends(get_db)) -> AdminUser:
     if not admin:
         raise HTTPException(
             status_code=status.HTTP_303_SEE_OTHER,
-            headers={"Location": "/admin/login"}
+            headers={"Location": settings.url_for_app("/admin/login")}
         )
+    _admin_initialized = True
     return admin
 
-def ensure_admin_user_exists(db: Session) -> AdminUser:
+_admin_initialized = False
+
+def ensure_admin_user_exists(db: Session) -> Optional[AdminUser]:
+    global _admin_initialized
+    if _admin_initialized:
+        return None
     """التأكد من إنشاء مستخدم الأدمن من متغيرات البيئة إذا لم يكن موجوداً."""
     admin = db.query(AdminUser).filter(AdminUser.username == settings.ADMIN_USERNAME).first()
     if not admin:
@@ -49,4 +55,5 @@ def ensure_admin_user_exists(db: Session) -> AdminUser:
         db.add(admin)
         db.commit()
         db.refresh(admin)
+    _admin_initialized = True
     return admin

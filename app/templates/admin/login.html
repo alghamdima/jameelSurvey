@@ -7,9 +7,9 @@
   <div class="login-card">
     <div class="login-header">
       {% if lang == 'ar' %}
-      <img src="/static/img/logo-ar/logo-dark.png" alt="عبد اللطيف جميل للتمويل" class="brand-logo-img large">
+      <img src="{{ base_path }}/static/img/logo-ar/logo-dark.png" alt="عبد اللطيف جميل للتمويل" class="brand-logo-img large">
       {% else %}
-      <img src="/static/img/logo-en/logo-dark.png" alt="Abdul Latif Jameel Finance" class="brand-logo-img large">
+      <img src="{{ base_path }}/static/img/logo-en/logo-dark.png" alt="Abdul Latif Jameel Finance" class="brand-logo-img large">
       {% endif %}
     </div>
 
@@ -19,7 +19,7 @@
     </div>
     {% endif %}
 
-    <form method="POST" action="/admin/login" class="login-form">
+    <form method="POST" action="{{ base_path }}/admin/login" class="login-form">
       <div class="form-group">
         <label for="username" class="form-label">{{ t('admin.username_label', lang) }}</label>
         <input 

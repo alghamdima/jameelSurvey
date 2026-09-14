@@ -6,7 +6,7 @@ import json
 from fastapi import APIRouter, Depends, Request, Response, Form, HTTPException, status
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.exc import IntegrityError
 
 from app.core.config import settings
@@ -25,6 +25,8 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 templates.env.globals["t"] = get_text
 templates.env.globals["current_year"] = datetime.now().year
 templates.env.globals["base_url"] = settings.BASE_URL
+templates.env.globals["base_path"] = settings.base_path
+templates.env.globals["url_for_app"] = settings.url_for_app
 
 def get_locale(request: Request) -> str:
     cookie_lang = request.cookies.get("survey_lang")
@@ -42,8 +44,8 @@ async def root_redirect(request: Request, db: Session = Depends(get_db)):
     """
     admin = get_current_admin(request, db)
     if admin:
-        return RedirectResponse(url="/admin/dashboard", status_code=status.HTTP_303_SEE_OTHER)
-    return RedirectResponse(url="/admin/login", status_code=status.HTTP_303_SEE_OTHER)
+        return RedirectResponse(url=settings.url_for_app("/admin/dashboard"), status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(url=settings.url_for_app("/admin/login"), status_code=status.HTTP_303_SEE_OTHER)
 
 # --- مسار تبديل اللغة العام ---
 @router.get("/set-language")
@@ -77,7 +79,7 @@ async def view_survey(
     db: Session = Depends(get_db)
 ):
     lang = get_locale(request)
-    survey = db.query(Survey).filter(Survey.public_id == public_id).first()
+    survey = db.query(Survey).options(joinedload(Survey.questions)).filter(Survey.public_id == public_id).first()
 
     # إذا كان الاستبيان غير موجود أو في حالة مسودة، لا يعرض للعامة
     if not survey or survey.status == "draft":

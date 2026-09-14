@@ -18,6 +18,7 @@ from app.core.auth import get_current_admin, require_admin, ensure_admin_user_ex
 from app.db.session import get_db
 from app.models import AdminUser, Survey, SurveyQuestion, SurveyResponse
 from app.services.excel_exporter import generate_survey_excel
+from app.services.image_optimizer import optimize_and_save_image
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -27,6 +28,8 @@ STATIC_UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 templates.env.globals["t"] = get_text
 templates.env.globals["base_url"] = settings.BASE_URL
+templates.env.globals["base_path"] = settings.base_path
+templates.env.globals["url_for_app"] = settings.url_for_app
 
 def get_locale(request: Request) -> str:
     cookie_lang = request.cookies.get("survey_lang")
@@ -44,7 +47,7 @@ def generate_public_id(length: int = 8) -> str:
 async def admin_login_page(request: Request, db: Session = Depends(get_db)):
     admin = get_current_admin(request, db)
     if admin:
-        return RedirectResponse(url="/admin/dashboard", status_code=status.HTTP_303_SEE_OTHER)
+        return RedirectResponse(url=settings.url_for_app("/admin/dashboard"), status_code=status.HTTP_303_SEE_OTHER)
     
     lang = get_locale(request)
     return templates.TemplateResponse(
@@ -71,7 +74,7 @@ async def admin_login_submit(
             context={"lang": lang, "error": "auth_failed", "username": username}
         )
 
-    response = RedirectResponse(url="/admin/dashboard", status_code=status.HTTP_303_SEE_OTHER)
+    response = RedirectResponse(url=settings.url_for_app("/admin/dashboard"), status_code=status.HTTP_303_SEE_OTHER)
     token = create_admin_session_token(user.username)
     response.set_cookie(
         key="admin_session",
@@ -84,7 +87,7 @@ async def admin_login_submit(
 
 @router.get("/logout")
 async def admin_logout():
-    response = RedirectResponse(url="/admin/login", status_code=status.HTTP_303_SEE_OTHER)
+    response = RedirectResponse(url=settings.url_for_app("/admin/login"), status_code=status.HTTP_303_SEE_OTHER)
     response.delete_cookie("admin_session")
     return response
 
@@ -141,26 +144,20 @@ async def admin_save_survey(
     background_url = str(form_data.get("background_url", "")).strip()
     questions_json_raw = form_data.get("questions_json", "[]")
 
-    # التعامل مع رفع ملف صورة الغلاف أو الخلفية إن وجد
+    # التعامل مع رفع ملف صورة الغلاف أو الخلفية بضغط فائق السرعة وتنسيق WebP
     header_file = form_data.get("header_image_file")
     if hasattr(header_file, "filename") and header_file.filename:
         ext = os.path.splitext(header_file.filename)[1].lower()
         if ext in [".png", ".jpg", ".jpeg", ".webp", ".gif"]:
-            filename = f"header_{secrets.token_hex(8)}{ext}"
-            filepath = STATIC_UPLOADS_DIR / filename
-            with open(filepath, "wb") as buffer:
-                shutil.copyfileobj(header_file.file, buffer)
-            header_image_url = f"/static/uploads/{filename}"
+            filename = optimize_and_save_image(header_file.file, STATIC_UPLOADS_DIR, prefix="header", max_dimension=1400)
+            header_image_url = settings.url_for_app(f"/static/uploads/{filename}")
 
     bg_file = form_data.get("background_file")
     if hasattr(bg_file, "filename") and bg_file.filename:
         ext = os.path.splitext(bg_file.filename)[1].lower()
         if ext in [".png", ".jpg", ".jpeg", ".webp", ".gif"]:
-            filename = f"bg_{secrets.token_hex(8)}{ext}"
-            filepath = STATIC_UPLOADS_DIR / filename
-            with open(filepath, "wb") as buffer:
-                shutil.copyfileobj(bg_file.file, buffer)
-            background_url = f"/static/uploads/{filename}"
+            filename = optimize_and_save_image(bg_file.file, STATIC_UPLOADS_DIR, prefix="bg", max_dimension=1920)
+            background_url = settings.url_for_app(f"/static/uploads/{filename}")
 
     try:
         questions_data = json.loads(str(questions_json_raw))
@@ -188,7 +185,7 @@ async def admin_save_survey(
         resp_count = db.query(SurveyResponse).filter(SurveyResponse.survey_id == survey.id).count()
         if resp_count > 0:
             db.commit()
-            return RedirectResponse(url="/admin/dashboard", status_code=status.HTTP_303_SEE_OTHER)
+            return RedirectResponse(url=settings.url_for_app("/admin/dashboard"), status_code=status.HTTP_303_SEE_OTHER)
     else:
         # إنشاء استبيان جديد مع public_id فريد
         public_id = generate_public_id()
@@ -212,28 +209,24 @@ async def admin_save_survey(
     # مسح الأسئلة القديمة وإعادة بناء الأسئلة والخيارات الجديدة
     db.query(SurveyQuestion).filter(SurveyQuestion.survey_id == survey.id).delete()
 
-    for idx, q in enumerate(questions_data):
-        q_key = q.get("key") or f"q_{idx+1}"
-        q_type = q.get("question_type") or "single_choice"
-        q_ar = str(q.get("text_ar", "")).strip()
-        q_en = str(q.get("text_en", "")).strip()
-        is_req = bool(q.get("is_required", True))
-        opts = q.get("options") or []
-
-        question = SurveyQuestion(
+    new_questions = [
+        SurveyQuestion(
             survey_id=survey.id,
-            question_key=q_key,
-            text_ar=q_ar,
-            text_en=q_en,
-            question_type=q_type,
-            is_required=is_req,
+            question_key=q.get("key") or f"q_{idx+1}",
+            text_ar=str(q.get("text_ar", "")).strip(),
+            text_en=str(q.get("text_en", "")).strip(),
+            question_type=q.get("question_type") or "single_choice",
+            is_required=bool(q.get("is_required", True)),
             order_index=idx,
-            options_json=json.dumps(opts, ensure_ascii=False)
+            options_json=json.dumps(q.get("options") or [], ensure_ascii=False)
         )
-        db.add(question)
+        for idx, q in enumerate(questions_data)
+    ]
+    if new_questions:
+        db.add_all(new_questions)
 
     db.commit()
-    return RedirectResponse(url="/admin/dashboard", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(url=settings.url_for_app("/admin/dashboard"), status_code=status.HTTP_303_SEE_OTHER)
 
 @router.get("/surveys/{survey_id}/edit", response_class=HTMLResponse)
 async def admin_edit_survey(
@@ -309,7 +302,7 @@ async def admin_change_survey_status(
 
     survey.status = status_val
     db.commit()
-    return RedirectResponse(url="/admin/dashboard", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(url=settings.url_for_app("/admin/dashboard"), status_code=status.HTTP_303_SEE_OTHER)
 
 # --- نسخ الاستبيان (Duplicate) ---
 
@@ -355,7 +348,7 @@ async def admin_duplicate_survey(
         db.add(new_q)
 
     db.commit()
-    return RedirectResponse(url="/admin/dashboard", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(url=settings.url_for_app("/admin/dashboard"), status_code=status.HTTP_303_SEE_OTHER)
 
 # --- حذف الاستبيان (Delete) ---
 
@@ -372,7 +365,7 @@ async def admin_delete_survey(
 
     db.delete(survey)
     db.commit()
-    return RedirectResponse(url="/admin/dashboard", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(url=settings.url_for_app("/admin/dashboard"), status_code=status.HTTP_303_SEE_OTHER)
 
 # --- استعراض نتائج الاستبيان ---
 

@@ -13,7 +13,7 @@
       {{ message or ('الاستبيان المطلوب غير موجود أو ما زال في حالة مسودة وغير منشور حالياً.' if lang == 'ar' else 'The requested survey does not exist or is currently in draft status.') }}
     </p>
     <div>
-      <a href="/admin/dashboard" class="btn btn-primary" style="display: inline-block;">
+      <a href="{{ base_path }}/admin/dashboard" class="btn btn-primary" style="display: inline-block;">
         {{ t('admin.back_to_dashboard', lang) }}
       </a>
     </div>

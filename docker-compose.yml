@@ -5,8 +5,9 @@ services:
       dockerfile: Dockerfile
     container_name: jameel_surveys_app
     restart: unless-stopped
+    command: ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 3 --loop uvloop --http httptools"]
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     env_file:
       - .env
     environment:
@@ -17,6 +18,8 @@ services:
       - ./locales:/app/locales
       - ./alembic:/app/alembic
       - ./.env:/app/.env
+    networks:
+      - jameelbi-net
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 10s
@@ -27,3 +30,7 @@ services:
 volumes:
   survey_data:
     name: jameel_surveys_data
+
+networks:
+  jameelbi-net:
+    external: true

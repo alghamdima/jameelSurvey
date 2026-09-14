@@ -30,4 +30,23 @@ class Settings(BaseSettings):
         extra="ignore"
     )
 
+
+    @property
+    def base_path(self) -> str:
+        import urllib.parse
+        return urllib.parse.urlparse(self.BASE_URL).path.rstrip('/')
+
+    def url_for_app(self, path: str) -> str:
+        if not path:
+            return ""
+        if path.startswith("http://") or path.startswith("https://"):
+            return path
+        path = path if path.startswith("/") else "/" + path
+        bp = self.base_path
+        if bp:
+            if path == bp or path.startswith(bp + "/"):
+                return path
+            return f"{bp}{path}"
+        return path
+
 settings = Settings()

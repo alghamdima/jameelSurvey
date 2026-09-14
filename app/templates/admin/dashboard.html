@@ -3,7 +3,7 @@
 {% block title %}{{ t('admin.dashboard_title', lang) }} - {{ t('app.company', lang) }}{% endblock %}
 
 {% block nav_items %}
-<a href="/admin/logout" class="btn-link-light">{{ t('nav.logout', lang) }}</a>
+<a href="{{ base_path }}/admin/logout" class="btn-link-light">{{ t('nav.logout', lang) }}</a>
 {% endblock %}
 
 {% block content %}
@@ -16,7 +16,7 @@
     </div>
 
     <div class="action-buttons-group">
-      <a href="/admin/surveys/new" class="btn btn-primary">
+      <a href="{{ base_path }}/admin/surveys/new" class="btn btn-primary">
         <span>+</span> {{ t('admin.create_manual_btn', lang) }}
       </a>
     </div>
@@ -79,36 +79,36 @@
             <!-- 5. أزرار الإجراءات المتناسقة بنمط النظام القياسي -->
             <td style="text-align: center;">
               <div class="row-actions" style="justify-content: center;">
-                <a href="/admin/surveys/{{ s.id }}/results" class="btn btn-primary btn-xs">
+                <a href="{{ base_path }}/admin/surveys/{{ s.id }}/results" class="btn btn-primary btn-xs">
                   {{ t('admin.action_results', lang) }}
                 </a>
                 
-                <a href="/admin/surveys/{{ s.id }}/edit" class="btn btn-outline btn-xs">
+                <a href="{{ base_path }}/admin/surveys/{{ s.id }}/edit" class="btn btn-outline btn-xs">
                   {{ t('admin.action_edit', lang) }}
                 </a>
 
-                <form method="POST" action="/admin/surveys/{{ s.id }}/duplicate" style="display:inline;">
+                <form method="POST" action="{{ base_path }}/admin/surveys/{{ s.id }}/duplicate" style="display:inline;">
                   <button type="submit" class="btn btn-ghost btn-xs">
                     {{ t('admin.action_duplicate', lang) }}
                   </button>
                 </form>
 
                 {% if s.status == 'draft' %}
-                <form method="POST" action="/admin/surveys/{{ s.id }}/status" style="display:inline;">
+                <form method="POST" action="{{ base_path }}/admin/surveys/{{ s.id }}/status" style="display:inline;">
                   <input type="hidden" name="status_val" value="published">
                   <button type="submit" class="btn btn-secondary btn-xs">
                     {{ t('admin.action_publish', lang) }}
                   </button>
                 </form>
                 {% elif s.status == 'published' %}
-                <form method="POST" action="/admin/surveys/{{ s.id }}/status" style="display:inline;">
+                <form method="POST" action="{{ base_path }}/admin/surveys/{{ s.id }}/status" style="display:inline;">
                   <input type="hidden" name="status_val" value="closed">
                   <button type="submit" class="btn btn-danger-outline btn-xs">
                     {{ t('admin.action_close', lang) }}
                   </button>
                 </form>
                 {% elif s.status == 'closed' %}
-                <form method="POST" action="/admin/surveys/{{ s.id }}/status" style="display:inline;">
+                <form method="POST" action="{{ base_path }}/admin/surveys/{{ s.id }}/status" style="display:inline;">
                   <input type="hidden" name="status_val" value="published">
                   <button type="submit" class="btn btn-secondary btn-xs">
                     {{ t('admin.action_reopen', lang) }}
@@ -117,7 +117,7 @@
                 {% endif %}
 
                 <!-- زر حذف نظيف ومتناسق بزر أحمر قياسي من النظام -->
-                <form method="POST" action="/admin/surveys/{{ s.id }}/delete" style="display:inline;" onsubmit="return confirm('{{ t('admin.delete_confirm_msg', lang) }}');">
+                <form method="POST" action="{{ base_path }}/admin/surveys/{{ s.id }}/delete" style="display:inline;" onsubmit="return confirm('{{ t('admin.delete_confirm_msg', lang) }}');">
                   <button type="submit" class="btn btn-danger-outline btn-xs">
                     {{ t('admin.action_delete', lang) }}
                   </button>
@@ -135,7 +135,7 @@
     <div class="empty-state-icon">📋</div>
     <h3>{{ t('admin.no_surveys', lang) }}</h3>
     <div style="margin-top: 1rem; display: flex; gap: 0.75rem; justify-content: center;">
-      <a href="/admin/surveys/new" class="btn btn-primary">{{ t('admin.create_manual_btn', lang) }}</a>
+      <a href="{{ base_path }}/admin/surveys/new" class="btn btn-primary">{{ t('admin.create_manual_btn', lang) }}</a>
     </div>
   </div>
   {% endif %}

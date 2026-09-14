@@ -6,7 +6,7 @@
 {% if survey.background_url %}
 <style>
   body {
-    background: url('{{ survey.background_url }}') no-repeat center center fixed !important;
+    background: url('{{ url_for_app(survey.background_url) }}') no-repeat center center fixed !important;
     background-size: cover !important;
   }
   .survey-container {
@@ -26,7 +26,7 @@
   
   {% if survey.header_image_url %}
   <div class="survey-banner-wrapper">
-    <img src="{{ survey.header_image_url }}" alt="Header Banner" class="survey-banner-img" onerror="this.onerror=null; this.parentElement.style.display='none';">
+    <img src="{{ url_for_app(survey.header_image_url) }}" alt="Header Banner" class="survey-banner-img" onerror="this.onerror=null; this.parentElement.style.display='none';">
   </div>
   {% endif %}
 
@@ -49,7 +49,7 @@
 
   <!-- نموذج الأسئلة (يظهر فقط بعد إتمام التحقق من الرقم الوظيفي) -->
   <div id="survey-questions-section" style="{% if not verified_emp_id %}display: none;{% endif %}">
-    <form method="POST" action="/s/{{ survey.public_id }}/submit" id="survey-submit-form" onsubmit="handleSurveySubmit(event)">
+    <form method="POST" action="{{ base_path }}/s/{{ survey.public_id }}/submit" id="survey-submit-form" onsubmit="handleSurveySubmit(event)">
       <input type="hidden" name="participation_token" id="participation_token" value="{{ token or '' }}">
 
       <div class="questions-list">
@@ -114,9 +114,9 @@
   <div class="modal-card">
     <div class="modal-header">
       {% if lang == 'ar' %}
-      <img src="/static/img/logo-ar/logo-dark.png" alt="عبد اللطيف جميل للتمويل" class="brand-logo-img modal-logo">
+      <img src="{{ base_path }}/static/img/logo-ar/logo-dark.png" alt="عبد اللطيف جميل للتمويل" class="brand-logo-img modal-logo">
       {% else %}
-      <img src="/static/img/logo-en/logo-dark.png" alt="Abdul Latif Jameel Finance" class="brand-logo-img modal-logo">
+      <img src="{{ base_path }}/static/img/logo-en/logo-dark.png" alt="Abdul Latif Jameel Finance" class="brand-logo-img modal-logo">
       {% endif %}
       <div style="flex:1;">
         <h3 id="modal-title" class="modal-title">{{ survey.title_ar if lang == 'ar' else survey.title_en }}</h3>
@@ -189,7 +189,7 @@ async function handleEmployeeVerification(e) {
     const formData = new FormData();
     formData.append('employee_id', empId);
 
-    const resp = await fetch(`/s/${surveyPublicId}/verify-employee`, {
+    const resp = await fetch(`${window.BASE_PATH || ''}/s/${surveyPublicId}/verify-employee`, {
       method: 'POST',
       body: formData
     });

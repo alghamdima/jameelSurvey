@@ -7,12 +7,13 @@
   <title>{% block title %}{{ t('app.name', lang) }} - {{ t('app.company', lang) }}{% endblock %}</title>
   
   <!-- أيقونة الموقع الرسمية (Favicon) لشعار عبد اللطيف جميل للتمويل -->
-  <link rel="icon" type="image/png" href="/static/img/favicon.png">
-  <link rel="apple-touch-icon" href="/static/img/favicon.png">
+  <link rel="icon" type="image/png" href="{{ base_path }}/static/img/favicon.png">
+  <link rel="apple-touch-icon" href="{{ base_path }}/static/img/favicon.png">
   
   <!-- ملف الأنماط الأساسي بهوية عبد اللطيف جميل للتمويل -->
-  <link rel="stylesheet" href="/static/css/style.css">
+  <link rel="stylesheet" href="{{ base_path }}/static/css/style.css">
   {% block extra_head %}{% endblock %}
+<script>window.BASE_PATH = '{{ base_path }}';</script>
 </head>
 <body class="{% block body_class %}{% endblock %}">
 
@@ -20,18 +21,18 @@
   <!-- شريط التنقل العلوي المؤسسي -->
   <header class="navbar">
     <div class="container nav-wrapper">
-      <a href="/" class="brand-group" title="{{ t('app.company', lang) }}">
+      <a href="{{ base_path }}/" class="brand-group" title="{{ t('app.company', lang) }}">
         {% if lang == 'ar' %}
-        <img src="/static/img/logo-ar/logo-white.png" alt="عبد اللطيف جميل للتمويل" class="brand-logo-img">
+        <img src="{{ base_path }}/static/img/logo-ar/logo-white.png" alt="عبد اللطيف جميل للتمويل" class="brand-logo-img">
         {% else %}
-        <img src="/static/img/logo-en/logo-white.png" alt="Abdul Latif Jameel Finance" class="brand-logo-img">
+        <img src="{{ base_path }}/static/img/logo-en/logo-white.png" alt="Abdul Latif Jameel Finance" class="brand-logo-img">
         {% endif %}
       </a>
       
       <div class="nav-actions">
         {% block nav_items %}{% endblock %}
         <!-- زر تبديل اللغة مع حفظ التفضيل عبر المسار المخصص -->
-        <a href="/set-language?lang={{ t('nav.lang_target', lang) }}&redirect={{ request.url.path }}" class="btn-lang" title="Switch Language">
+        <a href="{{ base_path }}/set-language?lang={{ t('nav.lang_target', lang) }}&redirect={{ request.url.path }}" class="btn-lang" title="Switch Language">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="10"></circle>
             <line x1="2" y1="12" x2="22" y2="12"></line>
@@ -59,7 +60,7 @@
   </footer>
 
   <!-- السكريبتات الأساسية الخفيفة -->
-  <script src="/static/js/main.js"></script>
+  <script src="{{ base_path }}/static/js/main.js"></script>
   {% block extra_scripts %}{% endblock %}
 </body>
 </html>
