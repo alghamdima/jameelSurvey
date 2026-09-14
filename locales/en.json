@@ -100,7 +100,7 @@
     "classic_theme_badge": "📄 Classic",
     "no_responses_sub": "Share the survey link with employees to start collecting responses and analytics.",
     "participants_label": "participants",
-    "top_rated_choice_badge": "⭐ Top Choice",
+    "top_rated_choice_badge": "Top Choice",
     "q_interaction_rate": "Question interaction rate",
     "text_answers_received_title": "Received Text Responses",
     "q_participation_rate": "Participation rate",
@@ -115,7 +115,9 @@
     "votes_distribution": "Votes Distribution",
     "responses_count_unit": "responses",
     "action_delete": "Delete",
-    "delete_confirm_msg": "Are you sure you want to delete this survey and all its responses? This action cannot be undone."
+    "delete_confirm_msg": "Are you sure you want to delete this survey and all its responses? This action cannot be undone.",
+    "save_btn": "Save Changes",
+    "cancel_btn": "Cancel"
   },
   "survey": {
     "employee_modal_title": "Employee Verification",

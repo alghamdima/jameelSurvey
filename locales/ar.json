@@ -100,7 +100,7 @@
     "classic_theme_badge": "📄 كلاسيكي",
     "no_responses_sub": "شارك رابط الاستبيان مع الموظفين لبدء جمع الإجابات والتحليلات.",
     "participants_label": "مشارك",
-    "top_rated_choice_badge": "⭐ الأعلى تقييماً",
+    "top_rated_choice_badge": "الأعلى تقييماً",
     "q_interaction_rate": "نسبة التفاعل مع السؤال",
     "text_answers_received_title": "الإجابات النصية المستلمة",
     "q_participation_rate": "نسبة المشاركة",
@@ -115,7 +115,9 @@
     "votes_distribution": "توزيع الأصوات",
     "responses_count_unit": "مشاركة",
     "action_delete": "حذف",
-    "delete_confirm_msg": "هل أنت متأكد من رغبتك في حذف هذا الاستبيان وجميع إجاباته؟ لا يمكن التراجع عن هذا الإجراء."
+    "delete_confirm_msg": "هل أنت متأكد من رغبتك في حذف هذا الاستبيان وجميع إجاباته؟ لا يمكن التراجع عن هذا الإجراء.",
+    "save_btn": "حفظ التعديلات",
+    "cancel_btn": "إلغاء"
   },
   "survey": {
     "employee_modal_title": "التحقق الوظيفي",
