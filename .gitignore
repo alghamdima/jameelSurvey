@@ -30,8 +30,5 @@ venv/
 
 # Temporary & session files
 cookies.txt
-*.png
-*.jpg
-*.jpeg
 *.xlsx
 .pytest_cache/
