@@ -3,7 +3,7 @@
 {% block title %}{{ t('admin.dashboard_title', lang) }} - {{ t('app.company', lang) }}{% endblock %}
 
 {% block nav_items %}
-<a href="{{ base_path }}/admin/logout" class="btn-link-light">{{ t('nav.logout', lang) }}</a>
+<form method="POST" action="{{ base_path }}/admin/logout" style="display:inline"><input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}"><button type="submit" class="btn-link-light" style="background:none;border:0;cursor:pointer">{{ t('nav.logout', lang) }}</button></form>
 {% endblock %}
 
 {% block content %}
@@ -88,6 +88,7 @@
                 </a>
 
                 <form method="POST" action="{{ base_path }}/admin/surveys/{{ s.id }}/duplicate" style="display:inline;">
+<input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
                   <button type="submit" class="btn btn-ghost btn-xs">
                     {{ t('admin.action_duplicate', lang) }}
                   </button>
@@ -95,6 +96,7 @@
 
                 {% if s.status == 'draft' %}
                 <form method="POST" action="{{ base_path }}/admin/surveys/{{ s.id }}/status" style="display:inline;">
+<input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
                   <input type="hidden" name="status_val" value="published">
                   <button type="submit" class="btn btn-secondary btn-xs">
                     {{ t('admin.action_publish', lang) }}
@@ -102,6 +104,7 @@
                 </form>
                 {% elif s.status == 'published' %}
                 <form method="POST" action="{{ base_path }}/admin/surveys/{{ s.id }}/status" style="display:inline;">
+<input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
                   <input type="hidden" name="status_val" value="closed">
                   <button type="submit" class="btn btn-danger-outline btn-xs">
                     {{ t('admin.action_close', lang) }}
@@ -109,6 +112,7 @@
                 </form>
                 {% elif s.status == 'closed' %}
                 <form method="POST" action="{{ base_path }}/admin/surveys/{{ s.id }}/status" style="display:inline;">
+<input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
                   <input type="hidden" name="status_val" value="published">
                   <button type="submit" class="btn btn-secondary btn-xs">
                     {{ t('admin.action_reopen', lang) }}
@@ -118,6 +122,7 @@
 
                 <!-- زر حذف نظيف ومتناسق بزر أحمر قياسي من النظام -->
                 <form method="POST" action="{{ base_path }}/admin/surveys/{{ s.id }}/delete" style="display:inline;" onsubmit="return confirm('{{ t('admin.delete_confirm_msg', lang) }}');">
+<input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
                   <button type="submit" class="btn btn-danger-outline btn-xs">
                     {{ t('admin.action_delete', lang) }}
                   </button>

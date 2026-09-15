@@ -49,12 +49,13 @@
 
   <!-- نموذج الأسئلة (يظهر فقط بعد إتمام التحقق من الرقم الوظيفي) -->
   <div id="survey-questions-section" style="{% if not verified_emp_id %}display: none;{% endif %}">
+    {% if error %}<div class="alert alert-danger" role="alert">{{ error }}</div>{% endif %}
     <form method="POST" action="{{ base_path }}/s/{{ survey.public_id }}/submit" id="survey-submit-form" onsubmit="handleSurveySubmit(event)">
       <input type="hidden" name="participation_token" id="participation_token" value="{{ token or '' }}">
 
       <div class="questions-list">
         {% for q in questions %}
-        <div class="card question-card" id="card-{{ q.question_key }}">
+        <div class="card question-card" id="card-{{ q.question_key }}" data-required="{{ q.is_required | lower }}">
           <div class="q-title-row">
             <h3 class="q-title">
               <span class="q-num">{{ loop.index }}</span>
@@ -229,6 +230,16 @@ function showModalError(msg) {
 }
 
 function handleSurveySubmit(e) {
+  for (const card of document.querySelectorAll('.question-card[data-required="true"]')) {
+    const boxes = card.querySelectorAll('input[type="checkbox"]');
+    if (boxes.length && !Array.from(boxes).some(box => box.checked)) {
+      e.preventDefault();
+      boxes[0].setCustomValidity(currentLang === 'ar' ? 'اختر إجابة واحدة على الأقل' : 'Select at least one answer');
+      boxes[0].reportValidity();
+      boxes.forEach(box => box.addEventListener('change', () => boxes[0].setCustomValidity(''), {once:true}));
+      return;
+    }
+  }
   const submitBtn = document.getElementById('submit-survey-btn');
   submitBtn.disabled = true;
   submitBtn.innerText = "{{ t('survey.submitting', lang) }}";

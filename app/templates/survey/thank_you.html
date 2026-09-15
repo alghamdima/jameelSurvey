@@ -15,3 +15,11 @@
   </div>
 </div>
 {% endblock %}
+
+{% block extra_scripts %}
+<script>
+try {
+  sessionStorage.removeItem('draft_ans_' + window.location.pathname.replace(/\/submit$/, ''));
+} catch (_) {}
+</script>
+{% endblock %}

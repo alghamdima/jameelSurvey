@@ -1,59 +1,46 @@
+from datetime import datetime
 from typing import Optional
 from fastapi import Request, Depends, HTTPException, status
-from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
-
+from sqlalchemy.exc import IntegrityError
 from app.core.config import settings
 from app.core.tokens import verify_admin_session_token
 from app.db.session import get_db
-from app.models import AdminUser
-from app.core.security import hash_password
+from app.models import AdminUser, AdminSession
+from app.core.security import hash_password, verify_password
 
-def get_current_admin(request: Request, db: Session = Depends(get_db)) -> Optional[AdminUser]:
-    """
-    استخراج الأدمن من الكوكي المشفر 'admin_session'.
-    يقوم تلقائياً بتهيئة حساب الأدمن الافتراضي إذا لم يكن موجوداً في قاعدة البيانات.
-    """
-    # التأكد من وجود الأدمن الافتراضي
-    ensure_admin_user_exists(db)
-    
-    token = request.cookies.get("admin_session")
-    if not token:
+def get_current_admin(request: Request, db: Session) -> Optional[AdminUser]:
+    claims = verify_admin_session_token(request.cookies.get("admin_session", ""))
+    if not claims:
         return None
-    
-    username = verify_admin_session_token(token)
-    if not username:
+    session = db.get(AdminSession, claims["jti"])
+    if not session or session.expires_at <= datetime.utcnow():
         return None
-    
-    user = db.query(AdminUser).filter(AdminUser.username == username).first()
-    return user
+    user = db.get(AdminUser, session.admin_id)
+    return user if user and user.username == claims["sub"] else None
 
 def require_admin(request: Request, db: Session = Depends(get_db)) -> AdminUser:
-    """إلزامية تسجيل الدخول كمسؤول للمسارات المحمية."""
     admin = get_current_admin(request, db)
     if not admin:
-        raise HTTPException(
-            status_code=status.HTTP_303_SEE_OTHER,
-            headers={"Location": settings.url_for_app("/admin/login")}
-        )
-    _admin_initialized = True
+        raise HTTPException(status_code=status.HTTP_303_SEE_OTHER,
+                            headers={"Location": settings.url_for_app("/admin/login")})
     return admin
 
-_admin_initialized = False
-
-def ensure_admin_user_exists(db: Session) -> Optional[AdminUser]:
-    global _admin_initialized
-    if _admin_initialized:
-        return None
-    """التأكد من إنشاء مستخدم الأدمن من متغيرات البيئة إذا لم يكن موجوداً."""
-    admin = db.query(AdminUser).filter(AdminUser.username == settings.ADMIN_USERNAME).first()
-    if not admin:
-        admin = AdminUser(
-            username=settings.ADMIN_USERNAME,
-            password_hash=hash_password(settings.ADMIN_PASSWORD)
-        )
-        db.add(admin)
+def ensure_admin_user_exists(db: Session) -> AdminUser:
+    admin = db.query(AdminUser).filter_by(username=settings.ADMIN_USERNAME).first()
+    if admin:
+        if not admin.password_hash.startswith("pbkdf2_sha256$") and any(
+                verify_password(value, admin.password_hash)
+                for value in ("admin123", "change_this_secure_password")):
+            admin.password_hash = hash_password(settings.ADMIN_PASSWORD)
+            db.query(AdminSession).filter(AdminSession.admin_id == admin.id).delete()
+            db.commit()
+        return admin
+    admin = AdminUser(username=settings.ADMIN_USERNAME, password_hash=hash_password(settings.ADMIN_PASSWORD))
+    db.add(admin)
+    try:
         db.commit()
-        db.refresh(admin)
-    _admin_initialized = True
+    except IntegrityError:
+        db.rollback()
+        admin = db.query(AdminUser).filter_by(username=settings.ADMIN_USERNAME).one()
     return admin

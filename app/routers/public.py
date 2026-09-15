@@ -1,3 +1,4 @@
+from starlette.concurrency import run_in_threadpool
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -7,11 +8,15 @@ from fastapi import APIRouter, Depends, Request, Response, Form, HTTPException, 
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 
 from app.core.config import settings
 from app.core.i18n import get_text
-from app.core.security import normalize_employee_id
+from app.core.security import normalize_employee_id, valid_employee_id
+from app.services.audience import is_eligible_employee
+from app.services.rate_limit import enforce_rate_limit
+from app.schemas.survey import validate_answers
 from app.core.tokens import create_participation_token, verify_participation_token
 from app.core.auth import get_current_admin
 from app.db.session import get_db
@@ -36,7 +41,7 @@ def get_locale(request: Request) -> str:
 
 # --- المسار الرئيسي للموقع / ---
 @router.get("/", response_class=HTMLResponse)
-async def root_redirect(request: Request, db: Session = Depends(get_db)):
+def root_redirect(request: Request, db: Session = Depends(get_db)):
     """
     المسار الرئيسي:
     إذا كان الأدمن مسجلاً بالفعل، يُوجّه إلى لوحة الإدارة /admin/dashboard.
@@ -49,31 +54,39 @@ async def root_redirect(request: Request, db: Session = Depends(get_db)):
 
 # --- مسار تبديل اللغة العام ---
 @router.get("/set-language")
-async def set_language(lang: str, redirect: str = "/"):
+def set_language(lang: str, redirect: str = "/"):
     target_lang = lang if lang in settings.SUPPORTED_LOCALES else settings.DEFAULT_LOCALE
-    safe_redirect = redirect if redirect.startswith("/") else "/"
+    safe_redirect = redirect if (redirect.startswith("/") and not redirect.startswith("//")
+        and "\\" not in redirect and not any(ord(c) < 32 for c in redirect)) else settings.url_for_app("/")
     response = RedirectResponse(url=safe_redirect, status_code=status.HTTP_303_SEE_OTHER)
     response.set_cookie(
         key="survey_lang",
         value=target_lang,
         max_age=60 * 60 * 24 * 365,
         httponly=False,
-        samesite="lax"
+        samesite="lax",
+        secure=settings.cookie_secure,
+        path=settings.base_path or "/"
     )
     return response
 
 # --- فحص الصحة ---
 @router.get("/health")
-async def health_check():
-    return {
-        "status": "healthy",
-        "app_name": settings.APP_NAME,
-        "environment": settings.APP_ENV
-    }
+def health_check(db: Session = Depends(get_db)):
+    from sqlalchemy.exc import SQLAlchemyError
+    try:
+        # An empty survey table is healthy; employee files are optional.
+        db.query(Survey.id).first()
+        ready = True
+        return JSONResponse({"status": "healthy" if ready else "not_ready"},
+                            status_code=200 if ready else 503)
+    except SQLAlchemyError:
+        db.rollback()
+        return JSONResponse({"status": "not_ready"}, status_code=503)
 
 # --- مسار الموظف: عرض الاستبيان /s/{public_id} ---
 @router.get("/s/{public_id}", response_class=HTMLResponse)
-async def view_survey(
+def view_survey(
     public_id: str,
     request: Request,
     db: Session = Depends(get_db)
@@ -116,9 +129,12 @@ async def view_survey(
             ).first()
             if existing:
                 has_participated = True
-            else:
+            elif is_eligible_employee(db, survey, emp_id):
                 verified_emp_id = emp_id
 
+    if has_participated:
+        return templates.TemplateResponse(request=request, name="survey/already_participated.html",
+                                          context={"lang": lang, "survey": survey})
     return templates.TemplateResponse(
         request=request,
         name="survey/view.html",
@@ -135,12 +151,13 @@ async def view_survey(
 
 # --- مسار التحقق من الرقم الوظيفي عبر الـ Modal ---
 @router.post("/s/{public_id}/verify-employee")
-async def verify_employee_number(
+def verify_employee_number(
     public_id: str,
     request: Request,
     employee_id: str = Form(...),
     db: Session = Depends(get_db)
 ):
+    enforce_rate_limit(db, request, "verify-employee", 60, 60)
     survey = db.query(Survey).filter(Survey.public_id == public_id).first()
     if not survey or survey.status != "published":
         return JSONResponse(
@@ -150,10 +167,10 @@ async def verify_employee_number(
 
     # معالجة وتوحيد الرقم الوظيفي
     clean_emp_id = normalize_employee_id(employee_id)
-    if not clean_emp_id or len(clean_emp_id) < 2:
+    if not valid_employee_id(clean_emp_id) or not is_eligible_employee(db, survey, clean_emp_id):
         return JSONResponse(
             status_code=400,
-            content={"success": False, "error": "يرجى إدخال رقم وظيفي صحيح."}
+            content={"success": False, "error": get_text("survey.employee_not_allowed", get_locale(request))}
         )
 
     # التحقق من وجود مشاركة سابقة
@@ -187,9 +204,11 @@ async def verify_employee_number(
     response.set_cookie(
         key=f"part_{public_id}",
         value=token,
-        max_age=60 * 60 * 12,  # 12 ساعة
+        max_age=settings.PARTICIPATION_TTL_SECONDS,  # 12 ساعة
         httponly=True,
-        samesite="lax"
+        samesite="lax",
+        secure=settings.cookie_secure,
+        path=settings.base_path or "/"
     )
     return response
 
@@ -200,11 +219,17 @@ async def submit_survey_response(
     request: Request,
     db: Session = Depends(get_db)
 ):
+    form_data = await request.form()
+    return await run_in_threadpool(_submit_survey_form, public_id, request, db, form_data)
+
+
+def _submit_survey_form(public_id, request, db, form_data):
+    enforce_rate_limit(db, request, "submit-survey", 60, 60)
+    db.execute(text("BEGIN IMMEDIATE"))
     survey = db.query(Survey).filter(Survey.public_id == public_id).first()
     if not survey or survey.status != "published":
         raise HTTPException(status_code=400, detail="الاستبيان غير متاح للإرسال.")
 
-    form_data = await request.form()
     token = form_data.get("participation_token") or request.cookies.get(f"part_{public_id}")
 
     if not token:
@@ -212,7 +237,7 @@ async def submit_survey_response(
 
     # استخراج الرقم الوظيفي من التوكن الموقع في الخادم
     employee_id = verify_participation_token(str(token), public_id)
-    if not employee_id:
+    if not employee_id or not is_eligible_employee(db, survey, employee_id):
         raise HTTPException(status_code=401, detail="سياق المشاركة غير صالح أو منتهي الصلاحية.")
 
     # إعادة التحقق من عدم وجود مشاركة سابقة قبل الحفظ
@@ -229,21 +254,17 @@ async def submit_survey_response(
         )
 
     # جمع الإجابات
-    answers = {}
-    for q in survey.questions:
-        q_key = q.question_key
-        if q.question_type == "multiple_choice":
-            vals = form_data.getlist(q_key)
-            if q.is_required and not vals:
-                raise HTTPException(status_code=400, detail=f"الإجابة على السؤال {q_key} مطلوبة.")
-            answers[q_key] = vals
-        else:
-            val = form_data.get(q_key, "")
-            if isinstance(val, str):
-                val = val.strip()
-            if q.is_required and not val:
-                raise HTTPException(status_code=400, detail=f"الإجابة على السؤال {q_key} مطلوبة.")
-            answers[q_key] = val
+    try:
+        answers = validate_answers(survey.questions, form_data)
+    except ValueError:
+        message = ("يرجى إكمال الأسئلة المطلوبة والتحقق من الإجابات ثم المحاولة مجددًا."
+                   if get_locale(request) == "ar" else
+                   "Please complete required questions and check your answers before trying again.")
+        return templates.TemplateResponse(
+            request=request, name="survey/view.html", status_code=400,
+            context={"lang": get_locale(request), "survey": survey, "questions": survey.questions,
+                     "verified_emp_id": employee_id, "has_participated": False, "token": str(token),
+                     "error": message, "base_url": settings.BASE_URL.rstrip("/")})
 
     # حفظ المشاركة داخل Transaction مع حماية الـ UNIQUE Constraint المتزامنة
     try:
@@ -269,5 +290,5 @@ async def submit_survey_response(
         name="survey/thank_you.html",
         context={"lang": lang, "survey": survey}
     )
-    resp.delete_cookie(f"part_{public_id}")
+    resp.delete_cookie(f"part_{public_id}", path=settings.base_path or "/", secure=settings.cookie_secure)
     return resp

@@ -1,97 +1,52 @@
-import json
 import base64
-import hmac
 import hashlib
+import hmac
+import json
 import time
 from typing import Optional
 from app.core.config import settings
 
+def sign_token(kind: str, ttl: int, **claims) -> str:
+    now = int(time.time())
+    payload = {"kind": kind, "iat": now, "exp": now + ttl, **claims}
+    raw = base64.urlsafe_b64encode(json.dumps(payload, separators=(",", ":")).encode()).decode().rstrip("=")
+    signature = hmac.new(settings.SECRET_KEY.encode(), raw.encode(), hashlib.sha256).hexdigest()
+    return f"{raw}.{signature}"
+
+def verify_token(token: str, kind: str) -> Optional[dict]:
+    if not isinstance(token, str) or len(token) > 4096:
+        return None
+    try:
+        raw, signature = token.split(".", 1)
+        expected = hmac.new(settings.SECRET_KEY.encode(), raw.encode(), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(signature, expected):
+            return None
+        payload = json.loads(base64.urlsafe_b64decode(raw + "=" * (-len(raw) % 4)))
+        now = int(time.time())
+        if payload.get("kind") != kind or not isinstance(payload.get("exp"), int):
+            return None
+        if not isinstance(payload.get("iat"), int) or payload["iat"] > now + 30:
+            return None
+        if payload["exp"] <= now or payload["exp"] <= payload["iat"]:
+            return None
+        return payload
+    except (ValueError, TypeError, UnicodeError, AttributeError):
+        return None
+
 def create_participation_token(survey_public_id: str, employee_id: str) -> str:
-    """
-    إنشاء رمز سياق مشاركة مشفر وموقع رقمياً (HMAC-SHA256).
-    لا يعتمد على كود قابل للتعديل بالمتصفح، ويحوي المعرف والرقم مع ختم زمني.
-    """
-    payload = {
-        "sid": survey_public_id,
-        "eid": employee_id,
-        "ts": int(time.time())
-    }
-    raw_bytes = json.dumps(payload, separators=(',', ':')).encode('utf-8')
-    payload_b64 = base64.urlsafe_b64encode(raw_bytes).decode('utf-8').rstrip('=')
-    
-    signature = hmac.new(
-        settings.SECRET_KEY.encode('utf-8'),
-        payload_b64.encode('utf-8'),
-        hashlib.sha256
-    ).hexdigest()
-    
-    return f"{payload_b64}.{signature}"
+    return sign_token("participation", settings.PARTICIPATION_TTL_SECONDS, sid=survey_public_id, eid=employee_id)
 
 def verify_participation_token(token: str, expected_survey_public_id: str) -> Optional[str]:
-    """
-    التحقق من صحة الرمز واسترجاع الرقم الوظيفي.
-    يرجع employee_id إذا كان الرمز صحيحاً ومطابقاً للاستبيان، وإلا يرجع None.
-    """
-    if not token or "." not in token:
-        return None
-    
-    try:
-        payload_b64, signature = token.split(".", 1)
-        
-        expected_sig = hmac.new(
-            settings.SECRET_KEY.encode('utf-8'),
-            payload_b64.encode('utf-8'),
-            hashlib.sha256
-        ).hexdigest()
-        
-        if not hmac.compare_digest(signature, expected_sig):
-            return None
-        
-        # إضافة الحشوة إذا لزم الأمر لفك الترميز
-        rem = len(payload_b64) % 4
-        padded = payload_b64 + ('=' * (4 - rem) if rem else '')
-        raw_bytes = base64.urlsafe_b64decode(padded)
-        payload = json.loads(raw_bytes.decode('utf-8'))
-        
-        if payload.get("sid") != expected_survey_public_id:
-            return None
-        
-        return payload.get("eid")
-    except Exception:
-        return None
+    payload = verify_token(token, "participation")
+    if payload and payload.get("sid") == expected_survey_public_id and isinstance(payload.get("eid"), str):
+        return payload["eid"]
+    return None
 
-def create_admin_session_token(username: str) -> str:
-    """إنشاء رمز توثيق جلسة الأدمن."""
-    payload = {
-        "sub": username,
-        "ts": int(time.time())
-    }
-    raw_bytes = json.dumps(payload, separators=(',', ':')).encode('utf-8')
-    payload_b64 = base64.urlsafe_b64encode(raw_bytes).decode('utf-8').rstrip('=')
-    signature = hmac.new(
-        settings.SECRET_KEY.encode('utf-8'),
-        payload_b64.encode('utf-8'),
-        hashlib.sha256
-    ).hexdigest()
-    return f"{payload_b64}.{signature}"
+def create_admin_session_token(username: str, session_id: str) -> str:
+    return sign_token("admin", settings.ADMIN_SESSION_TTL_SECONDS, sub=username, jti=session_id)
 
-def verify_admin_session_token(token: str) -> Optional[str]:
-    """التحقق من توكن جلسة الأدمن واستخراج اسم المستخدم."""
-    if not token or "." not in token:
-        return None
-    try:
-        payload_b64, signature = token.split(".", 1)
-        expected_sig = hmac.new(
-            settings.SECRET_KEY.encode('utf-8'),
-            payload_b64.encode('utf-8'),
-            hashlib.sha256
-        ).hexdigest()
-        if not hmac.compare_digest(signature, expected_sig):
-            return None
-        rem = len(payload_b64) % 4
-        padded = payload_b64 + ('=' * (4 - rem) if rem else '')
-        raw_bytes = base64.urlsafe_b64decode(padded)
-        payload = json.loads(raw_bytes.decode('utf-8'))
-        return payload.get("sub")
-    except Exception:
-        return None
+def verify_admin_session_token(token: str) -> Optional[dict]:
+    payload = verify_token(token, "admin")
+    if payload and isinstance(payload.get("sub"), str) and isinstance(payload.get("jti"), str):
+        return payload
+    return None

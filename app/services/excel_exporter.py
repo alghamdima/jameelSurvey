@@ -1,12 +1,21 @@
 """خدمة تصدير نتائج الاستبيانات إلى ملف إكسل رسمي (.xlsx) بهوية عبد اللطيف جميل للتمويل."""
 import io
 import json
+import re
 from datetime import datetime
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 
 from app.models import Survey, SurveyResponse
+
+def safe_cell(sheet, row, column, value):
+    if isinstance(value, str):
+        value = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", value)
+    cell = sheet.cell(row=row, column=column, value=value)
+    if isinstance(value, str):
+        cell.data_type = "s"
+    return cell
 
 
 def generate_survey_excel(survey: Survey, responses: list[SurveyResponse], stats: dict, lang: str = "ar") -> io.BytesIO:
@@ -133,7 +142,7 @@ def generate_survey_excel(survey: Survey, responses: list[SurveyResponse], stats
 
                 ws_summary.row_dimensions[current_r].height = 22
                 for c_i, v in enumerate(row_vals, start=1):
-                    cell = ws_summary.cell(row=current_r, column=c_i, value=v)
+                    cell = safe_cell(ws_summary, current_r, c_i, v)
                     cell.border = thin_border
                     cell.font = Font(name="Segoe UI", size=10, bold=(is_top or c_i == 1))
                     if is_top:
@@ -164,7 +173,7 @@ def generate_survey_excel(survey: Survey, responses: list[SurveyResponse], stats
             ]
             ws_summary.row_dimensions[current_r].height = 22
             for c_i, v in enumerate(row_vals, start=1):
-                cell = ws_summary.cell(row=current_r, column=c_i, value=v)
+                cell = safe_cell(ws_summary, current_r, c_i, v)
                 cell.border = thin_border
                 cell.font = Font(name="Segoe UI", size=10, bold=(c_i == 1))
                 if current_r % 2 == 0:
@@ -244,7 +253,7 @@ def generate_survey_excel(survey: Survey, responses: list[SurveyResponse], stats
                 row_content.append(str(user_ans).strip())
 
         for c_i, v in enumerate(row_content, start=1):
-            cell = ws_raw.cell(row=row_num, column=c_i, value=v)
+            cell = safe_cell(ws_raw, row_num, c_i, v)
             cell.border = thin_border
             cell.font = Font(name="Segoe UI", size=10)
             if row_num % 2 == 0:

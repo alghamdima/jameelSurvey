@@ -5,7 +5,7 @@
 /* 1. الخط العربي الرسمي: Luma */
 @font-face {
   font-family: 'Luma';
-  src: url('/static/fonts/ar/Luma-Regular.ttf') format('truetype');
+  src: url('../fonts/ar/Luma-Regular.ttf') format('truetype');
   font-weight: 400;
   font-style: normal;
   font-display: swap;
@@ -13,7 +13,7 @@
 
 @font-face {
   font-family: 'Luma';
-  src: url('/static/fonts/ar/Luma-Light.ttf') format('truetype');
+  src: url('../fonts/ar/Luma-Light.ttf') format('truetype');
   font-weight: 300;
   font-style: normal;
   font-display: swap;
@@ -21,7 +21,7 @@
 
 @font-face {
   font-family: 'Luma';
-  src: url('/static/fonts/ar/Luma-Thin.ttf') format('truetype');
+  src: url('../fonts/ar/Luma-Thin.ttf') format('truetype');
   font-weight: 200;
   font-style: normal;
   font-display: swap;
@@ -29,7 +29,7 @@
 
 @font-face {
   font-family: 'Luma';
-  src: url('/static/fonts/ar/Luma-SemiBold.ttf') format('truetype');
+  src: url('../fonts/ar/Luma-SemiBold.ttf') format('truetype');
   font-weight: 600;
   font-style: normal;
   font-display: swap;
@@ -37,7 +37,7 @@
 
 @font-face {
   font-family: 'Luma';
-  src: url('/static/fonts/ar/Luma-SemiBold.ttf') format('truetype');
+  src: url('../fonts/ar/Luma-SemiBold.ttf') format('truetype');
   font-weight: 700;
   font-style: normal;
   font-display: swap;
@@ -46,7 +46,7 @@
 /* 2. الخط الإنجليزي الرسمي: Karbon */
 @font-face {
   font-family: 'Karbon';
-  src: url('/static/fonts/en/Karbon-Regular.ttf') format('truetype');
+  src: url('../fonts/en/Karbon-Regular.ttf') format('truetype');
   font-weight: 400;
   font-style: normal;
   font-display: swap;
@@ -54,7 +54,7 @@
 
 @font-face {
   font-family: 'Karbon';
-  src: url('/static/fonts/en/Karbon-RegularItalic.ttf') format('truetype');
+  src: url('../fonts/en/Karbon-RegularItalic.ttf') format('truetype');
   font-weight: 400;
   font-style: italic;
   font-display: swap;
@@ -62,7 +62,7 @@
 
 @font-face {
   font-family: 'Karbon';
-  src: url('/static/fonts/en/Karbon-Light.ttf') format('truetype');
+  src: url('../fonts/en/Karbon-Light.ttf') format('truetype');
   font-weight: 300;
   font-style: normal;
   font-display: swap;
@@ -70,7 +70,7 @@
 
 @font-face {
   font-family: 'Karbon';
-  src: url('/static/fonts/en/Karbon-LightItalic.ttf') format('truetype');
+  src: url('../fonts/en/Karbon-LightItalic.ttf') format('truetype');
   font-weight: 300;
   font-style: italic;
   font-display: swap;
@@ -78,7 +78,7 @@
 
 @font-face {
   font-family: 'Karbon';
-  src: url('/static/fonts/en/Karbon-Medium.ttf') format('truetype');
+  src: url('../fonts/en/Karbon-Medium.ttf') format('truetype');
   font-weight: 500;
   font-style: normal;
   font-display: swap;
@@ -86,7 +86,7 @@
 
 @font-face {
   font-family: 'Karbon';
-  src: url('/static/fonts/en/Karbon-MediumItalic.ttf') format('truetype');
+  src: url('../fonts/en/Karbon-MediumItalic.ttf') format('truetype');
   font-weight: 500;
   font-style: italic;
   font-display: swap;
@@ -94,7 +94,7 @@
 
 @font-face {
   font-family: 'Karbon';
-  src: url('/static/fonts/en/Karbon-Semibold.ttf') format('truetype');
+  src: url('../fonts/en/Karbon-Semibold.ttf') format('truetype');
   font-weight: 600;
   font-style: normal;
   font-display: swap;
@@ -102,7 +102,7 @@
 
 @font-face {
   font-family: 'Karbon';
-  src: url('/static/fonts/en/Karbon-SemiboldItalic.ttf') format('truetype');
+  src: url('../fonts/en/Karbon-SemiboldItalic.ttf') format('truetype');
   font-weight: 600;
   font-style: italic;
   font-display: swap;
@@ -110,7 +110,7 @@
 
 @font-face {
   font-family: 'Karbon';
-  src: url('/static/fonts/en/Karbon-Bold.ttf') format('truetype');
+  src: url('../fonts/en/Karbon-Bold.ttf') format('truetype');
   font-weight: 700;
   font-style: normal;
   font-display: swap;
@@ -118,7 +118,7 @@
 
 @font-face {
   font-family: 'Karbon';
-  src: url('/static/fonts/en/Karbon-BoldItalic.ttf') format('truetype');
+  src: url('../fonts/en/Karbon-BoldItalic.ttf') format('truetype');
   font-weight: 700;
   font-style: italic;
   font-display: swap;
@@ -126,7 +126,7 @@
 
 @font-face {
   font-family: 'Karbon';
-  src: url('/static/fonts/en/Karbon-Thin.ttf') format('truetype');
+  src: url('../fonts/en/Karbon-Thin.ttf') format('truetype');
   font-weight: 200;
   font-style: normal;
   font-display: swap;
@@ -134,7 +134,7 @@
 
 @font-face {
   font-family: 'Karbon';
-  src: url('/static/fonts/en/Karbon-ThinItalic.ttf') format('truetype');
+  src: url('../fonts/en/Karbon-ThinItalic.ttf') format('truetype');
   font-weight: 200;
   font-style: italic;
   font-display: swap;

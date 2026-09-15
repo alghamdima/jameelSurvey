@@ -1,41 +1,36 @@
 from pathlib import Path
 from sqlalchemy import create_engine, event
-from sqlalchemy.orm import declarative_base, sessionmaker
-from app.core.config import settings
+from sqlalchemy.engine import make_url
+from sqlalchemy.orm import DeclarativeBase, sessionmaker
+from app.core.config import settings, BASE_DIR
 
-# ضمان وجود مجلد البيانات
-db_path = settings.DATABASE_URL.replace("sqlite:///", "")
-if db_path.startswith("./") or not db_path.startswith("/"):
-    full_path = (Path(__file__).resolve().parent.parent.parent / db_path).resolve()
-    full_path.parent.mkdir(parents=True, exist_ok=True)
-else:
-    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+url = make_url(settings.DATABASE_URL)
+if url.get_backend_name() != "sqlite":
+    raise ValueError("This deployment supports SQLite databases only")
+if url.database and url.database != ":memory:":
+    db_path = Path(url.database)
+    if not db_path.is_absolute():
+        db_path = BASE_DIR / db_path
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    url = url.set(database=str(db_path.resolve()))
+    settings.DATABASE_URL = url.render_as_string(hide_password=False)
 
-engine = create_engine(
-    settings.DATABASE_URL,
-    connect_args={"check_same_thread": False},
-    echo=settings.DEBUG
-)
+engine = create_engine(url, connect_args={"check_same_thread": False, "timeout": 30}, echo=settings.DEBUG)
 
-# تفعيل وضع WAL و Foreign Keys في SQLite لتحقيق أعلى أداء وأمان في المعاملات المتزامنة
 @event.listens_for(engine, "connect")
-def set_sqlite_pragma(dbapi_connection, connection_record):
-    cursor = dbapi_connection.cursor()
+def set_sqlite_pragma(connection, _):
+    cursor = connection.cursor()
     cursor.execute("PRAGMA journal_mode=WAL")
     cursor.execute("PRAGMA synchronous=NORMAL")
     cursor.execute("PRAGMA foreign_keys=ON")
-    cursor.execute("PRAGMA cache_size=-64000")  # 64MB memory page cache
-    cursor.execute("PRAGMA temp_store=MEMORY")  # Temp tables and indices in RAM
-    cursor.execute("PRAGMA mmap_size=268435456")  # 256MB memory-mapped I/O
+    cursor.execute("PRAGMA busy_timeout=30000")
     cursor.close()
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-Base = declarative_base()
+class Base(DeclarativeBase):
+    pass
 
 def get_db():
-    db = SessionLocal()
-    try:
+    with SessionLocal() as db:
         yield db
-    finally:
-        db.close()

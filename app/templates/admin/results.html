@@ -4,7 +4,7 @@
 
 {% block nav_items %}
 <a href="{{ base_path }}/admin/dashboard" class="btn-link-light">{{ t('admin.back_to_dashboard', lang) }}</a>
-<a href="{{ base_path }}/admin/logout" class="btn-link-light">{{ t('nav.logout', lang) }}</a>
+<form method="POST" action="{{ base_path }}/admin/logout" style="display:inline"><input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}"><button type="submit" class="btn-link-light" style="background:none;border:0;cursor:pointer">{{ t('nav.logout', lang) }}</button></form>
 {% endblock %}
 
 {% block content %}

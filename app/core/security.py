@@ -1,44 +1,36 @@
-import re
 import hashlib
 import hmac
+import re
+import secrets
 import unicodedata
 
+PASSWORD_ITERATIONS = 600_000
+
 def hash_password(password: str) -> str:
-    """
-    تشفير كلمة المرور باستخدام PBKDF2-HMAC-SHA256 من المكتبة القياسية لبايثون
-    لضمان التوافق والأمان العالي دون أي مشاكل مع إصدارات bcrypt/passlib.
-    """
-    salt = "alj_secure_salt_surveys_2026"
-    pwd_bytes = password.encode('utf-8')
-    key = hashlib.pbkdf2_hmac('sha256', pwd_bytes, salt.encode('utf-8'), 100000)
-    return key.hex()
+    salt = secrets.token_hex(16)
+    digest = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), PASSWORD_ITERATIONS).hex()
+    return f"pbkdf2_sha256${PASSWORD_ITERATIONS}${salt}${digest}"
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    expected = hash_password(plain_password)
-    return hmac.compare_digest(expected, hashed_password)
+    try:
+        if hashed_password.startswith("pbkdf2_sha256$"):
+            _, iterations, salt, digest = hashed_password.split("$")
+            count = int(iterations)
+            if not 100_000 <= count <= 2_000_000:
+                return False
+        else:
+            # Accept existing hashes once; login upgrades them to randomly salted hashes.
+            count, salt, digest = 100_000, "alj_secure_salt_surveys_2026", hashed_password
+        expected = hashlib.pbkdf2_hmac("sha256", plain_password.encode(), salt.encode(), count).hex()
+        return hmac.compare_digest(expected, digest)
+    except (ValueError, TypeError):
+        return False
 
 def normalize_employee_id(raw_id: str) -> str:
-    """
-    توحيد الرقم الوظيفي:
-    - التعامل معه كنص للحفاظ على الأصفار في بدايته.
-    - إزالة المسافات الطرفية والداخلية الزائدة.
-    - تحويل الأرقام العربية والمشرقية (٠-٩) إلى أرقام قياسية (0-9).
-    - تنظيف أي حروف تحكم غير مرئية.
-    """
-    if not raw_id:
-        return ""
-    
-    # تنظيف المسافات والرموز غير المرئية
-    text = str(raw_id).strip()
-    
-    # جدول تحويل الأرقام العربية الشرقية والفارسية
-    arabic_digits = "٠١٢٣٤٥٦٧٨٩"
-    persian_digits = "۰۱۲۳۴۵۶۷۸۹"
-    ascii_digits = "0123456789"
-    
-    tr_table = str.maketrans(arabic_digits + persian_digits, ascii_digits * 2)
-    normalized = text.translate(tr_table)
-    
-    # إزالة أي مسافات زائدة
-    normalized = re.sub(r"\s+", "", normalized)
-    return normalized
+    text = str(raw_id or "")
+    text = "".join(c for c in text if not c.isspace() and unicodedata.category(c) != "Cf")
+    digits = "٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹"
+    return text.translate(str.maketrans(digits, "0123456789" * 2))
+
+def valid_employee_id(value: str) -> bool:
+    return bool(re.fullmatch(r"[0-9]{1,50}", value))

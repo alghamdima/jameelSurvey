@@ -65,7 +65,7 @@ class LLMService:
             "response_format": {"type": "json_object"}
         }
 
-        async with httpx.AsyncClient(verify=False, timeout=60.0) as client:
+        async with httpx.AsyncClient(timeout=60.0) as client:
             resp = await client.post(url, headers=headers, json=payload)
             if resp.status_code != 200:
                 logger.error(f"LLM API error {resp.status_code}: {resp.text}")

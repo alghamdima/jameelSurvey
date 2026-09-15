@@ -25,6 +25,8 @@ class Survey(Base):
     description_ar = Column(Text, nullable=True)
     description_en = Column(Text, nullable=True)
     status = Column(String(20), default="draft", nullable=False)  # draft, published, closed
+    audience_mode = Column(String(20), default="all", nullable=False)
+    audience = relationship("SurveyAudience", cascade="all, delete-orphan")
     theme_style = Column(String(30), default="creative", nullable=False)  # creative, classic
     header_image_url = Column(String(500), nullable=True)  # صورة رئيسية للاستبيان
     background_url = Column(String(500), nullable=True)  # صورة أو لون خلفية الصفحة
@@ -53,6 +55,8 @@ class SurveyQuestion(Base):
 
     survey = relationship("Survey", back_populates="questions")
 
+    __table_args__ = (UniqueConstraint("survey_id", "question_key", name="uq_survey_question_key"),)
+
     def get_options(self) -> list[dict]:
         if not self.options_json:
             return []
@@ -78,3 +82,34 @@ class SurveyResponse(Base):
     __table_args__ = (
         UniqueConstraint("survey_id", "employee_id", name="uq_survey_employee"),
     )
+
+
+class Employee(Base):
+    __tablename__ = "employees"
+    employee_id = Column(String(50), primary_key=True)
+    active = Column(Boolean, nullable=False, default=True)
+
+class EmployeeImport(Base):
+    __tablename__ = "employee_imports"
+    id = Column(Integer, primary_key=True)
+    fingerprint = Column(String(64), nullable=False)
+    row_count = Column(Integer, nullable=False)
+    imported_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+class AdminSession(Base):
+    __tablename__ = "admin_sessions"
+    id = Column(String(64), primary_key=True)
+    admin_id = Column(Integer, ForeignKey("admin_users.id", ondelete="CASCADE"), nullable=False, index=True)
+    expires_at = Column(DateTime, nullable=False, index=True)
+
+class RateLimitBucket(Base):
+    __tablename__ = "rate_limit_buckets"
+    key = Column(String(64), primary_key=True)
+    hits = Column(Integer, nullable=False)
+    expires_at = Column(Integer, nullable=False, index=True)
+
+
+class SurveyAudience(Base):
+    __tablename__ = "survey_audience"
+    survey_id = Column(Integer, ForeignKey("surveys.id", ondelete="CASCADE"), primary_key=True)
+    employee_id = Column(String(50), primary_key=True)

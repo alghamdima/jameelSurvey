@@ -32,3 +32,9 @@ venv/
 cookies.txt
 *.xlsx
 .pytest_cache/
+
+# Private employee roster, local credentials and review tooling
+employee.csv
+private/
+.tools/
+requirements-dev.lock

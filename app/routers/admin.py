@@ -1,4 +1,8 @@
+from starlette.concurrency import run_in_threadpool
 import json
+from datetime import datetime, timedelta
+from sqlalchemy import text, func
+from pydantic import ValidationError
 import secrets
 import string
 import os
@@ -12,21 +16,39 @@ from pathlib import Path
 
 from app.core.config import settings
 from app.core.i18n import get_text
-from app.core.security import verify_password
-from app.core.tokens import create_admin_session_token
+from app.core.security import verify_password, hash_password
+from app.core.tokens import create_admin_session_token, verify_admin_session_token
+from app.core.csrf import require_csrf
+from app.schemas.survey import SurveyQuestions
+from app.services.rate_limit import enforce_rate_limit
 from app.core.auth import get_current_admin, require_admin, ensure_admin_user_exists
 from app.db.session import get_db
-from app.models import AdminUser, Survey, SurveyQuestion, SurveyResponse
+from app.models import AdminUser, AdminSession, Survey, SurveyQuestion, SurveyResponse
 from app.services.excel_exporter import generate_survey_excel
 from app.services.image_optimizer import optimize_and_save_image
+from app.services.audience import prepare_audience, save_audience
+from app.models import SurveyAudience
 
-router = APIRouter(prefix="/admin", tags=["admin"])
+router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_csrf)])
+
+def decoded_answers(responses):
+    maps = []
+    for response in responses:
+        try:
+            value = json.loads(response.answers_json)
+            if isinstance(value, dict):
+                maps.append(value)
+        except (ValueError, TypeError):
+            continue
+    return maps
+
 
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 STATIC_UPLOADS_DIR = Path(__file__).resolve().parent.parent / "static" / "uploads"
 STATIC_UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 templates.env.globals["t"] = get_text
+templates.env.globals["current_year"] = datetime.now().year
 templates.env.globals["base_url"] = settings.BASE_URL
 templates.env.globals["base_path"] = settings.base_path
 templates.env.globals["url_for_app"] = settings.url_for_app
@@ -44,7 +66,7 @@ def generate_public_id(length: int = 8) -> str:
 # --- تسجيل الدخول والخروج للأدمن ---
 
 @router.get("/login", response_class=HTMLResponse)
-async def admin_login_page(request: Request, db: Session = Depends(get_db)):
+def admin_login_page(request: Request, db: Session = Depends(get_db)):
     admin = get_current_admin(request, db)
     if admin:
         return RedirectResponse(url=settings.url_for_app("/admin/dashboard"), status_code=status.HTTP_303_SEE_OTHER)
@@ -57,13 +79,13 @@ async def admin_login_page(request: Request, db: Session = Depends(get_db)):
     )
 
 @router.post("/login", response_class=HTMLResponse)
-async def admin_login_submit(
+def admin_login_submit(
     request: Request,
-    username: str = Form(...),
-    password: str = Form(...),
+    username: str = Form(..., max_length=50),
+    password: str = Form(..., max_length=1024),
     db: Session = Depends(get_db)
 ):
-    ensure_admin_user_exists(db)
+    enforce_rate_limit(db, request, "login", 20, 300)
     user = db.query(AdminUser).filter(AdminUser.username == username.strip()).first()
     lang = get_locale(request)
 
@@ -75,34 +97,44 @@ async def admin_login_submit(
         )
 
     response = RedirectResponse(url=settings.url_for_app("/admin/dashboard"), status_code=status.HTTP_303_SEE_OTHER)
-    token = create_admin_session_token(user.username)
+    if not user.password_hash.startswith("pbkdf2_sha256$"):
+        user.password_hash = hash_password(password)
+    session_id = secrets.token_urlsafe(32)
+    db.query(AdminSession).filter(AdminSession.expires_at <= datetime.utcnow()).delete()
+    db.add(AdminSession(id=session_id, admin_id=user.id,
+                        expires_at=datetime.utcnow() + timedelta(seconds=settings.ADMIN_SESSION_TTL_SECONDS)))
+    db.commit()
+    token = create_admin_session_token(user.username, session_id)
     response.set_cookie(
         key="admin_session",
         value=token,
-        max_age=60 * 60 * 24 * 7,  # 7 أيام
+        max_age=settings.ADMIN_SESSION_TTL_SECONDS,
         httponly=True,
-        samesite="lax"
+        samesite="lax",
+        secure=settings.cookie_secure,
+        path=settings.base_path or "/"
     )
     return response
 
-@router.get("/logout")
-async def admin_logout():
+@router.post("/logout")
+def admin_logout(request: Request, db: Session = Depends(get_db)):
+    claims = verify_admin_session_token(request.cookies.get("admin_session", ""))
+    if claims:
+        db.query(AdminSession).filter(AdminSession.id == claims["jti"]).delete()
+        db.commit()
     response = RedirectResponse(url=settings.url_for_app("/admin/login"), status_code=status.HTTP_303_SEE_OTHER)
-    response.delete_cookie("admin_session")
+    response.delete_cookie("admin_session", path=settings.base_path or "/", secure=settings.cookie_secure)
     return response
 
 # --- لوحة الإدارة الرئيسية واستعراض الاستبيانات ---
 
 @router.get("/dashboard", response_class=HTMLResponse)
-async def admin_dashboard(request: Request, db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
+def admin_dashboard(request: Request, db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
     lang = get_locale(request)
     surveys = db.query(Survey).order_by(Survey.created_at.desc()).all()
     
     # حساب عدد المشاركات لكل استبيان
-    survey_stats = {}
-    for s in surveys:
-        resp_count = db.query(SurveyResponse).filter(SurveyResponse.survey_id == s.id).count()
-        survey_stats[s.id] = resp_count
+    survey_stats = dict(db.query(SurveyResponse.survey_id, func.count(SurveyResponse.id)).group_by(SurveyResponse.survey_id).all())
 
     return templates.TemplateResponse(
         request=request,
@@ -119,7 +151,7 @@ async def admin_dashboard(request: Request, db: Session = Depends(get_db), admin
 # --- إنشاء وتعديل الاستبيانات ---
 
 @router.get("/surveys/new", response_class=HTMLResponse)
-async def admin_new_survey(request: Request, db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
+def admin_new_survey(request: Request, db: Session = Depends(get_db), admin: AdminUser = Depends(require_admin)):
     lang = get_locale(request)
     return templates.TemplateResponse(
         request=request,
@@ -134,6 +166,10 @@ async def admin_save_survey(
     admin: AdminUser = Depends(require_admin)
 ):
     form_data = await request.form()
+    return await run_in_threadpool(_save_survey_form, request, db, admin, form_data)
+
+
+def _save_survey_form(request, db, admin, form_data):
     survey_id = form_data.get("survey_id")
     title_ar = str(form_data.get("title_ar", "")).strip()
     title_en = str(form_data.get("title_en", "")).strip()
@@ -143,26 +179,71 @@ async def admin_save_survey(
     header_image_url = str(form_data.get("header_image_url", "")).strip()
     background_url = str(form_data.get("background_url", "")).strip()
     questions_json_raw = form_data.get("questions_json", "[]")
+    if not title_ar or not title_en or max(len(title_ar), len(title_en)) > 255:
+        raise HTTPException(400, "Both survey titles are required (maximum 255 characters)")
+    if max(len(desc_ar), len(desc_en)) > 10000 or theme_style not in {"creative", "classic"}:
+        raise HTTPException(400, "Invalid description or theme")
+    for image_url in (header_image_url, background_url):
+        if len(image_url) > 500 or (image_url and not image_url.startswith(("/", "https://", "http://"))):
+            raise HTTPException(400, "Invalid image URL")
+    if survey_id and (not isinstance(survey_id, str) or not survey_id.isascii() or not survey_id.isdecimal()):
+        raise HTTPException(400, "Invalid survey ID")
+    try:
+        questions_data = SurveyQuestions(questions=json.loads(str(questions_json_raw))).model_dump()["questions"]
+    except (ValueError, TypeError, ValidationError):
+        raise HTTPException(400, "Invalid questions: check types, translations, options and unique identifiers")
+    # Serialize edits with submissions so an in-flight response cannot refer to deleted questions.
+    db.rollback()
+    db.execute(text("BEGIN IMMEDIATE"))
+    existing_survey = db.get(Survey, int(survey_id)) if survey_id else None
+    if survey_id and existing_survey is None:
+        raise HTTPException(404, "Survey not found")
+    try:
+        audience_mode, audience_ids = prepare_audience(db, existing_survey, form_data, get_locale(request))
+    except HTTPException as exc:
+        # Keep the edited values and questions on the page; browsers require re-selecting file inputs.
+        from types import SimpleNamespace
+        draft = SimpleNamespace(
+            id=int(survey_id) if survey_id else "",
+            title_ar=title_ar, title_en=title_en, description_ar=desc_ar, description_en=desc_en,
+            theme_style=theme_style, header_image_url=header_image_url, background_url=background_url,
+            audience_mode=form_data.get("audience_mode", "custom"),
+            questions=[SurveyQuestion(question_key=q["key"], text_ar=q["text_ar"], text_en=q["text_en"],
+                question_type=q["question_type"], is_required=q["is_required"],
+                options_json=json.dumps(q["options"], ensure_ascii=False)) for q in questions_data])
+        response_count = db.query(SurveyResponse).filter_by(survey_id=int(survey_id)).count() if survey_id else 0
+        audience_count = db.query(SurveyAudience).filter_by(survey_id=int(survey_id)).count() if survey_id else 0
+        db.rollback()
+        return templates.TemplateResponse(request=request, name="admin/survey_form.html", status_code=exc.status_code,
+            context={"lang":get_locale(request), "admin":admin, "survey":draft, "error":exc.detail,
+                     "response_count":response_count, "audience_count":audience_count})
+
 
     # التعامل مع رفع ملف صورة الغلاف أو الخلفية بضغط فائق السرعة وتنسيق WebP
     header_file = form_data.get("header_image_file")
     if hasattr(header_file, "filename") and header_file.filename:
         ext = os.path.splitext(header_file.filename)[1].lower()
+        if ext not in [".png", ".jpg", ".jpeg", ".webp", ".gif"]:
+            raise HTTPException(400, "Unsupported image format")
         if ext in [".png", ".jpg", ".jpeg", ".webp", ".gif"]:
-            filename = optimize_and_save_image(header_file.file, STATIC_UPLOADS_DIR, prefix="header", max_dimension=1400)
+            try:
+                filename = optimize_and_save_image(header_file.file, STATIC_UPLOADS_DIR, prefix="header", max_dimension=1400)
+            except ValueError as exc:
+                raise HTTPException(400, str(exc))
             header_image_url = settings.url_for_app(f"/static/uploads/{filename}")
 
     bg_file = form_data.get("background_file")
     if hasattr(bg_file, "filename") and bg_file.filename:
         ext = os.path.splitext(bg_file.filename)[1].lower()
+        if ext not in [".png", ".jpg", ".jpeg", ".webp", ".gif"]:
+            raise HTTPException(400, "Unsupported image format")
         if ext in [".png", ".jpg", ".jpeg", ".webp", ".gif"]:
-            filename = optimize_and_save_image(bg_file.file, STATIC_UPLOADS_DIR, prefix="bg", max_dimension=1920)
+            try:
+                filename = optimize_and_save_image(bg_file.file, STATIC_UPLOADS_DIR, prefix="bg", max_dimension=1920)
+            except ValueError as exc:
+                raise HTTPException(400, str(exc))
             background_url = settings.url_for_app(f"/static/uploads/{filename}")
 
-    try:
-        questions_data = json.loads(str(questions_json_raw))
-    except Exception:
-        questions_data = []
 
     if not title_ar or not title_en:
         raise HTTPException(status_code=400, detail="العنوان باللغتين مطلوب.")
@@ -184,6 +265,7 @@ async def admin_save_survey(
         # إذا كان هناك مشاركات مسجلة، امنع تعديل بنية الأسئلة
         resp_count = db.query(SurveyResponse).filter(SurveyResponse.survey_id == survey.id).count()
         if resp_count > 0:
+            save_audience(db, survey, audience_mode, audience_ids)
             db.commit()
             return RedirectResponse(url=settings.url_for_app("/admin/dashboard"), status_code=status.HTTP_303_SEE_OTHER)
     else:
@@ -205,6 +287,8 @@ async def admin_save_survey(
         )
         db.add(survey)
         db.flush()
+
+    save_audience(db, survey, audience_mode, audience_ids)
 
     # مسح الأسئلة القديمة وإعادة بناء الأسئلة والخيارات الجديدة
     db.query(SurveyQuestion).filter(SurveyQuestion.survey_id == survey.id).delete()
@@ -229,7 +313,7 @@ async def admin_save_survey(
     return RedirectResponse(url=settings.url_for_app("/admin/dashboard"), status_code=status.HTTP_303_SEE_OTHER)
 
 @router.get("/surveys/{survey_id}/edit", response_class=HTMLResponse)
-async def admin_edit_survey(
+def admin_edit_survey(
     survey_id: int,
     request: Request,
     db: Session = Depends(get_db),
@@ -250,6 +334,7 @@ async def admin_edit_survey(
             "admin": admin,
             "survey": survey,
             "response_count": resp_count,
+            "audience_count": db.query(SurveyAudience).filter_by(survey_id=survey.id).count(),
             "error": None
         }
     )
@@ -257,7 +342,7 @@ async def admin_edit_survey(
 # --- تغيير حالة الاستبيان (نشر / إغلاق / إرجاع لمسودة) ---
 
 @router.post("/surveys/{survey_id}/status")
-async def admin_change_survey_status(
+def admin_change_survey_status(
     survey_id: int,
     status_val: str = Form(...),
     db: Session = Depends(get_db),
@@ -307,7 +392,7 @@ async def admin_change_survey_status(
 # --- نسخ الاستبيان (Duplicate) ---
 
 @router.post("/surveys/{survey_id}/duplicate")
-async def admin_duplicate_survey(
+def admin_duplicate_survey(
     survey_id: int,
     db: Session = Depends(get_db),
     admin: AdminUser = Depends(require_admin)
@@ -333,6 +418,9 @@ async def admin_duplicate_survey(
     )
     db.add(new_survey)
     db.flush()
+    new_survey.audience_mode = survey.audience_mode
+    db.add_all([SurveyAudience(survey_id=new_survey.id, employee_id=entry.employee_id)
+                for entry in survey.audience])
 
     for q in survey.questions:
         new_q = SurveyQuestion(
@@ -352,8 +440,8 @@ async def admin_duplicate_survey(
 
 # --- حذف الاستبيان (Delete) ---
 
-@router.api_route("/surveys/{survey_id}/delete", methods=["GET", "POST"])
-async def admin_delete_survey(
+@router.post("/surveys/{survey_id}/delete")
+def admin_delete_survey(
     survey_id: int,
     db: Session = Depends(get_db),
     admin: AdminUser = Depends(require_admin)
@@ -370,7 +458,7 @@ async def admin_delete_survey(
 # --- استعراض نتائج الاستبيان ---
 
 @router.get("/surveys/{survey_id}/results", response_class=HTMLResponse)
-async def admin_survey_results(
+def admin_survey_results(
     survey_id: int,
     request: Request,
     db: Session = Depends(get_db),
@@ -383,6 +471,7 @@ async def admin_survey_results(
 
     responses = db.query(SurveyResponse).filter(SurveyResponse.survey_id == survey.id).all()
     total_responses = len(responses)
+    answer_maps = decoded_answers(responses)
 
     # تجميع الإحصائيات حسب معرفات الأسئلة والخيارات لضمان عدم انفصالها حسب لغة الموظف
     stats = {}
@@ -394,9 +483,8 @@ async def admin_survey_results(
         text_answers = []
         question_answered_count = 0  # عدد المشاركين الذين أجابوا على هذا السؤال بالتحديد
 
-        for r in responses:
+        for ans_map in answer_maps:
             try:
-                ans_map = json.loads(r.answers_json)
                 q_ans = ans_map.get(q.question_key)
                 if q_ans is not None:
                     if q.question_type == "single_choice" and q_ans in opt_counts:
@@ -405,7 +493,7 @@ async def admin_survey_results(
                     elif q.question_type == "multiple_choice" and isinstance(q_ans, list):
                         if len(q_ans) > 0:
                             question_answered_count += 1
-                        for val in q_ans:
+                        for val in set(q_ans):
                             if val in opt_counts:
                                 opt_counts[val] += 1
                     elif q.question_type == "text" and str(q_ans).strip():
@@ -459,7 +547,7 @@ async def admin_survey_results(
 
 
 @router.get("/surveys/{survey_id}/export/excel")
-async def export_survey_results_excel(
+def export_survey_results_excel(
     survey_id: int,
     request: Request,
     db: Session = Depends(get_db),
@@ -473,6 +561,7 @@ async def export_survey_results_excel(
 
     responses = db.query(SurveyResponse).filter(SurveyResponse.survey_id == survey.id).order_by(SurveyResponse.submitted_at.desc()).all()
     total_responses = len(responses)
+    answer_maps = decoded_answers(responses)
 
     # حساب الإحصائيات الدقيقة
     stats = {}
@@ -482,9 +571,8 @@ async def export_survey_results_excel(
         text_answers = []
         question_answered_count = 0
 
-        for r in responses:
+        for ans_map in answer_maps:
             try:
-                ans_map = json.loads(r.answers_json) if r.answers_json else {}
                 q_ans = ans_map.get(q.question_key)
                 if q_ans is not None and q_ans != "":
                     if q.question_type == "single_choice" and q_ans in opt_counts:
@@ -493,7 +581,7 @@ async def export_survey_results_excel(
                     elif q.question_type == "multiple_choice" and isinstance(q_ans, list):
                         if len(q_ans) > 0:
                             question_answered_count += 1
-                        for k in q_ans:
+                        for k in set(q_ans):
                             if k in opt_counts:
                                 opt_counts[k] += 1
                     elif q.question_type == "text" and str(q_ans).strip():
@@ -521,7 +609,7 @@ async def export_survey_results_excel(
         }
 
     excel_stream = generate_survey_excel(survey, responses, stats, lang=lang)
-    safe_slug = "".join(c for c in (survey.title_en or survey.title_ar or "survey") if c.isalnum() or c in ("-", "_")).strip()
+    safe_slug = "".join(c for c in (survey.title_en or survey.title_ar or "survey") if (c.isascii() and c.isalnum()) or c in ("-", "_")).strip()[:80] or "survey"
     filename = f"ALJUF_Survey_{survey.id}_{safe_slug}_{survey.public_id}.xlsx"
 
     return StreamingResponse(
@@ -531,3 +619,9 @@ async def export_survey_results_excel(
             "Content-Disposition": f'attachment; filename="{filename}"'
         }
     )
+
+
+@router.get("/surveys/audience-template")
+def audience_csv_template(admin: AdminUser = Depends(require_admin)):
+    return Response(content="\ufeffEmployee No.\r\n", media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": 'attachment; filename="survey_employees_template.csv"'})

@@ -5,19 +5,17 @@ services:
       dockerfile: Dockerfile
     container_name: jameel_surveys_app
     restart: unless-stopped
-    command: ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 3 --loop uvloop --http httptools"]
+    command: ["sh", "-c", "alembic upgrade head && python -m app.cli.bootstrap && uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 3 --loop uvloop --http httptools"]
     ports:
       - "127.0.0.1:8000:8000"
     env_file:
       - .env
     environment:
       - DATABASE_URL=sqlite:////app/data/surveys.db
+      - EMPLOYEE_CSV_PATH=
     volumes:
       - survey_data:/app/data
-      - ./app:/app/app
-      - ./locales:/app/locales
-      - ./alembic:/app/alembic
-      - ./.env:/app/.env
+      - survey_uploads:/app/app/static/uploads
     networks:
       - jameelbi-net
     healthcheck:
@@ -28,9 +26,11 @@ services:
       start_period: 5s
 
 volumes:
+  survey_uploads:
   survey_data:
     name: jameel_surveys_data
 
 networks:
   jameelbi-net:
-    external: true
+    name: ${SURVEY_NETWORK_NAME:-jameelbi-net}
+    external: ${SURVEY_NETWORK_EXTERNAL:-false}

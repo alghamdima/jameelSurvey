@@ -4,7 +4,7 @@
 
 {% block nav_items %}
 <a href="{{ base_path }}/admin/dashboard" class="btn-link-light">{{ t('admin.back_to_dashboard', lang) }}</a>
-<a href="{{ base_path }}/admin/logout" class="btn-link-light">{{ t('nav.logout', lang) }}</a>
+<form method="POST" action="{{ base_path }}/admin/logout" style="display:inline"><input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}"><button type="submit" class="btn-link-light" style="background:none;border:0;cursor:pointer">{{ t('nav.logout', lang) }}</button></form>
 {% endblock %}
 
 {% block content %}
@@ -16,6 +16,7 @@
     <a href="{{ base_path }}/admin/dashboard" class="btn btn-outline">{{ t('admin.back_to_dashboard', lang) }}</a>
   </div>
 
+  {% if error %}<div class="alert alert-danger" role="alert">{{ error }}</div>{% endif %}
   {% if response_count and response_count > 0 %}
   <div class="alert alert-warning">
     ⚠️ {{ t('admin.locked_edit_notice', lang, count=response_count) }}
@@ -23,6 +24,7 @@
   {% endif %}
 
   <form method="POST" action="{{ base_path }}/admin/surveys/save" id="survey-form" enctype="multipart/form-data" onsubmit="prepareSubmit(event)">
+<input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
     {% if survey %}
     <input type="hidden" name="survey_id" value="{{ survey.id }}">
     {% endif %}
@@ -87,6 +89,27 @@
       </div>
     </div>
 
+    <section class="card" style="margin-bottom: var(--spacing-xl);" aria-labelledby="audience-heading">
+      <h2 id="audience-heading" class="card-title">{{ t('admin.audience_title', lang) }}</h2>
+      <div class="form-group">
+        <label for="audience_mode" class="form-label">{{ t('admin.audience_label', lang) }}</label>
+        <select id="audience_mode" name="audience_mode" class="form-input" onchange="updateAudienceUpload()">
+          <option value="all" {% if not survey or survey.audience_mode == 'all' %}selected{% endif %}>{{ t('admin.audience_all', lang) }}</option>
+          <option value="custom" {% if survey and survey.audience_mode == 'custom' %}selected{% endif %}>{{ t('admin.audience_custom', lang) }}</option>
+        </select>
+      </div>
+      <div id="audience-upload" {% if not survey or survey.audience_mode != 'custom' %}hidden{% endif %}>
+        {% if audience_count %}
+        <p class="form-help">{{ t('admin.audience_saved', lang, count=audience_count) }}</p>
+        {% endif %}
+        <label for="audience_file" class="form-label">{{ t('admin.audience_upload', lang) }}</label>
+        <input id="audience_file" name="audience_file" type="file" class="form-input" accept=".csv,text/csv" aria-describedby="audience-help">
+        <p id="audience-help" class="form-help">{{ t('admin.audience_help', lang) }}</p>
+        <a class="btn btn-outline btn-sm" href="{{ base_path }}/admin/surveys/audience-template">{{ t('admin.audience_template', lang) }}</a>
+      </div>
+      <p class="form-help">{{ t('admin.audience_change_notice', lang) }}</p>
+    </section>
+
     <!-- منشئ الأسئلة والخيارات -->
     <div class="card" style="margin-bottom: var(--spacing-xl);">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-lg);">
@@ -117,13 +140,21 @@
 
 {% block extra_scripts %}
 <script>
+function updateAudienceUpload() {
+  const custom = document.getElementById('audience_mode').value === 'custom';
+  const file = document.getElementById('audience_file');
+  document.getElementById('audience-upload').hidden = !custom;
+  file.disabled = !custom;
+  file.required = custom && !{{ (audience_count | default(0) > 0) | tojson }};
+}
+document.addEventListener('DOMContentLoaded', updateAudienceUpload);
 let questions = [];
 
 {% if survey and survey.questions %}
 questions = [
   {% for q in survey.questions %}
   {
-    key: "{{ q.question_key }}",
+    key: {{ q.question_key | tojson }},
     question_type: "{{ q.question_type }}",
     text_ar: {{ q.text_ar | tojson }},
     text_en: {{ q.text_en | tojson }},
@@ -218,7 +249,7 @@ function renderQuestions() {
 }
 
 function addQuestion() {
-  const newIdx = questions.length + 1;
+  const newIdx = Math.max(0, ...questions.map(q => Number(q.key.replace(/^q_/, "")) || 0)) + 1;
   questions.push({
     key: `q_${newIdx}`,
     question_type: "single_choice",
@@ -254,7 +285,7 @@ function changeQuestionType(qIndex, newType) {
 }
 
 function addOption(qIndex) {
-  const optIdx = questions[qIndex].options.length + 1;
+  const optIdx = Math.max(0, ...questions[qIndex].options.map(o => Number(o.key.replace(/^opt_/, "")) || 0)) + 1;
   questions[qIndex].options.push({
     key: `opt_${optIdx}`,
     text_ar: "",

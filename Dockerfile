@@ -15,16 +15,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # تثبيت تبعات بايثون
-COPY requirements.txt .
+COPY requirements.txt requirements.lock ./
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir -r requirements.lock
 
 # نسخ كود التطبيق وملفات التهيئة
 COPY app/ app/
 COPY locales/ locales/
 COPY alembic/ alembic/
 COPY alembic.ini .
-COPY .env.example .env
+# Production secrets are supplied at runtime.
 
 # إنشاء مجلد البيانات للتخزين الدائم وضبط الصلاحيات
 RUN mkdir -p /app/data
@@ -32,4 +32,4 @@ RUN mkdir -p /app/data
 EXPOSE 8000
 
 # سكريبت بدء التشغيل لتطبيق ترحيلات Alembic ثم تشغيل Uvicorn
-CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+CMD ["sh", "-c", "alembic upgrade head && python -m app.cli.bootstrap && uvicorn app.main:app --host 0.0.0.0 --port 8000"]

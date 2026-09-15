@@ -117,7 +117,20 @@
     "action_delete": "Delete",
     "delete_confirm_msg": "Are you sure you want to delete this survey and all its responses? This action cannot be undone.",
     "save_btn": "Save Changes",
-    "cancel_btn": "Cancel"
+    "cancel_btn": "Cancel",
+    "audience_title": "Eligible employees",
+    "audience_label": "Who can participate in this survey?",
+    "audience_all": "No restricted list — employee upload is optional",
+    "audience_custom": "Selected employees from a CSV file",
+    "audience_upload": "Upload employee numbers",
+    "audience_saved": "Saved list: {count} employees. Leave the file empty to keep it, or upload a replacement.",
+    "audience_help": "Uploading is optional. To restrict participation, upload a CSV with an Employee No. column, maximum 2 MB. Store numbers as text to preserve leading zeros. No prior registration is needed; duplicates are removed.",
+    "audience_template": "Download blank CSV template",
+    "audience_change_notice": "Without a list, any valid employee number is accepted, once per survey. Changing the list keeps previous responses. Select no restricted list to remove restrictions.",
+    "audience_invalid_mode": "Choose who is allowed to participate.",
+    "audience_select_custom": "Select the custom audience option to use the uploaded file.",
+    "audience_file_required": "Upload a CSV file to specify eligible employees.",
+    "audience_invalid_file": "Unable to read the list. Use a CSV with an Employee No. column and valid numbers, no missing entries, maximum 2 MB. Select the corrected file again."
   },
   "survey": {
     "employee_modal_title": "Employee Verification",
@@ -140,7 +153,8 @@
     "progress_answered": "{answered} of {total} questions answered ({pct}%)",
     "text_input_placeholder": "Type your answer here clearly and freely...",
     "enter_emp_id_alert": "Please enter your Employee ID.",
-    "connection_error_alert": "A server connection error occurred. Please try again."
+    "connection_error_alert": "A server connection error occurred. Please try again.",
+    "employee_not_allowed": "This employee number is not eligible for this survey."
   },
   "messages": {
     "lang_changed": "Language switched to English successfully",
